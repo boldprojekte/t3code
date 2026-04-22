@@ -10,3 +10,5 @@
 8. `08-precommit-format-and-lint.md`
 9. `09-event-state-test-expansion.md`
 10. `10-unify-process-session-abstraction.md`
+11. `pi-provider-integration-daily-usable.md`
+12. `pi-provider-phase-0-server-spike.md`
