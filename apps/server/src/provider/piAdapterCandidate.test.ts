@@ -113,6 +113,86 @@ function createFakeSession() {
   return { session };
 }
 
+function createMultiTurnToolUseSession() {
+  let listener: ((event: unknown) => void) | undefined;
+
+  const session = {
+    sessionId: "pi-session-multi-turn-1",
+    sessionFile: "/tmp/pi-session-multi-turn-1.jsonl",
+    bindExtensions: vi.fn(async () => {}),
+    subscribe: vi.fn((nextListener: (event: unknown) => void) => {
+      listener = nextListener;
+      return () => {
+        listener = undefined;
+      };
+    }),
+    getCommands: vi.fn(() => []),
+    prompt: vi.fn(async () => {
+      listener?.({ type: "agent_start" });
+
+      listener?.({ type: "turn_start", turnIndex: 1, timestamp: 1710000000000 });
+      listener?.({
+        type: "message_start",
+        message: { role: "assistant", timestamp: 1710000000000 },
+      });
+      listener?.({
+        type: "message_update",
+        message: { role: "assistant", timestamp: 1710000000001 },
+        assistantMessageEvent: { type: "text_delta", contentIndex: 0, delta: "Ich prüfe erst." },
+      });
+      listener?.({
+        type: "message_end",
+        message: { role: "assistant", stopReason: "toolUse", timestamp: 1710000000002 },
+      });
+      listener?.({
+        type: "tool_execution_start",
+        toolName: "find",
+        toolCallId: "tool-find-1",
+        args: { path: ".plans" },
+      });
+      listener?.({
+        type: "tool_execution_end",
+        toolName: "find",
+        toolCallId: "tool-find-1",
+        isError: false,
+        result: [".plans/pi-provider-progress.md"],
+      });
+      listener?.({
+        type: "turn_end",
+        turnIndex: 1,
+        message: { role: "assistant", stopReason: "toolUse", timestamp: 1710000000002 },
+        toolResults: [],
+      });
+
+      listener?.({ type: "turn_start", turnIndex: 2, timestamp: 1710000001000 });
+      listener?.({
+        type: "message_start",
+        message: { role: "assistant", timestamp: 1710000001000 },
+      });
+      listener?.({
+        type: "message_update",
+        message: { role: "assistant", timestamp: 1710000001001 },
+        assistantMessageEvent: { type: "text_delta", contentIndex: 0, delta: "Jetzt die Antwort." },
+      });
+      listener?.({
+        type: "message_end",
+        message: { role: "assistant", stopReason: "stop", timestamp: 1710000001002 },
+      });
+      listener?.({
+        type: "turn_end",
+        turnIndex: 2,
+        message: { role: "assistant", stopReason: "stop", timestamp: 1710000001002 },
+        toolResults: [],
+      });
+
+      listener?.({ type: "agent_end", messages: [] });
+    }),
+    abort: vi.fn(async () => {}),
+  };
+
+  return { session };
+}
+
 describe("createPiAdapterCandidate", () => {
   it("maps Pi session events into provider-runtime-shaped candidate events", async () => {
     const fakeSession = createFakeSession();
@@ -390,5 +470,102 @@ describe("createPiAdapterCandidate", () => {
         exitKind: "graceful",
       },
     });
+  });
+
+  it("keeps one visible turn across internal Pi tool-use boundaries", async () => {
+    const fakeSession = createMultiTurnToolUseSession();
+    const events: PiProviderRuntimeEventCandidate[] = [];
+
+    const candidate = await createPiAdapterCandidate({
+      cwd: process.cwd(),
+      threadId: ThreadId.make("thread-pi-multi-turn-1"),
+      sessionFile: "/tmp/pi-session-multi-turn-1.jsonl",
+      onEvent: (event) => {
+        events.push(event);
+      },
+      now: () => "2026-04-23T12:00:00.000Z",
+      createEventId: (() => {
+        let index = 0;
+        return () => `event-multi-${++index}`;
+      })(),
+      sdkLoader: async () => ({
+        getAgentDir: () => "/tmp/pi-agent",
+        SessionManager: {
+          create: vi.fn((cwd: string) => ({ cwd })),
+          open: vi.fn((sessionFile: string) => ({ sessionFile })),
+        },
+        createAgentSessionServices: vi.fn(async ({ cwd, agentDir }) => ({
+          cwd,
+          agentDir,
+          diagnostics: [],
+        })),
+        createAgentSessionFromServices: vi.fn(async ({ services }) => ({
+          session: fakeSession.session,
+          diagnostics: services.diagnostics,
+        })),
+        createAgentSessionRuntime: vi.fn(async (createRuntime, options) => {
+          await createRuntime({
+            cwd: options.cwd,
+            agentDir: options.agentDir,
+            sessionManager: options.sessionManager,
+          });
+
+          return {
+            session: fakeSession.session,
+            diagnostics: [],
+            dispose: vi.fn(async () => {}),
+          };
+        }),
+      }),
+    });
+
+    const turnId = TurnId.make("turn-pi-multi-turn-1");
+
+    await candidate.sendTurn({
+      turnId,
+      prompt: "Please inspect the plan docs and then answer.",
+    });
+
+    const turnStartedEvents = events.filter((event) => event.type === "turn.started");
+    const turnCompletedEvents = events.filter((event) => event.type === "turn.completed");
+    const readyEvents = events.filter(
+      (event) => event.type === "session.state.changed" && event.payload.state === "ready",
+    );
+    const assistantMessageStarts = events.filter(
+      (event) => event.type === "item.started" && event.payload.itemType === "assistant_message",
+    );
+
+    expect(turnStartedEvents).toHaveLength(1);
+    expect(turnStartedEvents[0]).toMatchObject({
+      turnId,
+      providerRefs: { providerTurnId: "1" },
+    });
+
+    expect(turnCompletedEvents).toHaveLength(1);
+    expect(turnCompletedEvents[0]).toMatchObject({
+      turnId,
+      providerRefs: { providerTurnId: "2" },
+      payload: {
+        state: "completed",
+        stopReason: "stop",
+      },
+    });
+
+    expect(readyEvents).toHaveLength(2);
+    expect(readyEvents[0]).toMatchObject({
+      payload: { state: "ready", reason: "Pi session ready" },
+    });
+    expect(readyEvents[1]).toMatchObject({
+      turnId,
+      payload: { state: "ready", reason: "Pi turn completed" },
+    });
+
+    expect(assistantMessageStarts).toHaveLength(2);
+    expect(assistantMessageStarts[0]?.turnId).toBe(turnId);
+    expect(assistantMessageStarts[0]?.itemId).toBe(`pi:assistant:${turnId}:1`);
+    expect(assistantMessageStarts[1]?.turnId).toBe(turnId);
+    expect(assistantMessageStarts[1]?.itemId).toBe(`pi:assistant:${turnId}:2`);
+
+    expect(events.some((event) => event.turnId === TurnId.make("pi:turn:1"))).toBe(false);
   });
 });

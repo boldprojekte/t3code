@@ -5,6 +5,7 @@
 - [Pi Provider Progress](./pi-provider-progress.md)
 - [Subplan: Pi Phase 1 Local Real-Thread Exerciser](./pi-provider-phase-1-local-real-thread-exerciser.md)
 - [Subplan: Pi Phase 1 Turn Lifecycle Contract](./pi-provider-phase-1-turn-lifecycle-contract.md)
+- [Subplan: Pi Phase 1 Unsupported Path Recheck](./pi-provider-phase-1-unsupported-path-recheck.md)
 
 ## Other plans
 1. [01-shared-model-normalization.md](./01-shared-model-normalization.md)

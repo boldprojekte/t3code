@@ -59,6 +59,86 @@ function createFakeSession() {
   return { session };
 }
 
+function createMultiTurnToolUseSession() {
+  let listener: ((event: unknown) => void) | undefined;
+
+  const session = {
+    sessionId: "pi-session-bridge-multi-1",
+    sessionFile: "/tmp/pi-session-bridge-multi-1.jsonl",
+    bindExtensions: vi.fn(async () => {}),
+    subscribe: vi.fn((nextListener: (event: unknown) => void) => {
+      listener = nextListener;
+      return () => {
+        listener = undefined;
+      };
+    }),
+    getCommands: vi.fn(() => []),
+    prompt: vi.fn(async (_text: string) => {
+      listener?.({ type: "agent_start" });
+
+      listener?.({ type: "turn_start", turnIndex: 1, timestamp: 1710000000000 });
+      listener?.({
+        type: "message_start",
+        message: { role: "assistant", timestamp: 1710000000000 },
+      });
+      listener?.({
+        type: "message_update",
+        message: { role: "assistant", timestamp: 1710000000001 },
+        assistantMessageEvent: { type: "text_delta", contentIndex: 0, delta: "Erst prüfen." },
+      });
+      listener?.({
+        type: "message_end",
+        message: { role: "assistant", stopReason: "toolUse", timestamp: 1710000000002 },
+      });
+      listener?.({
+        type: "tool_execution_start",
+        toolName: "read",
+        toolCallId: "tool-read-1",
+        args: { filePath: ".plans/pi-provider-progress.md" },
+      });
+      listener?.({
+        type: "tool_execution_end",
+        toolName: "read",
+        toolCallId: "tool-read-1",
+        isError: false,
+        result: "done",
+      });
+      listener?.({
+        type: "turn_end",
+        turnIndex: 1,
+        message: { role: "assistant", stopReason: "toolUse", timestamp: 1710000000002 },
+        toolResults: [],
+      });
+
+      listener?.({ type: "turn_start", turnIndex: 2, timestamp: 1710000001000 });
+      listener?.({
+        type: "message_start",
+        message: { role: "assistant", timestamp: 1710000001000 },
+      });
+      listener?.({
+        type: "message_update",
+        message: { role: "assistant", timestamp: 1710000001001 },
+        assistantMessageEvent: { type: "text_delta", contentIndex: 0, delta: "Dann antworten." },
+      });
+      listener?.({
+        type: "message_end",
+        message: { role: "assistant", stopReason: "stop", timestamp: 1710000001002 },
+      });
+      listener?.({
+        type: "turn_end",
+        turnIndex: 2,
+        message: { role: "assistant", stopReason: "stop", timestamp: 1710000001002 },
+        toolResults: [],
+      });
+
+      listener?.({ type: "agent_end", messages: [] });
+    }),
+    abort: vi.fn(async () => {}),
+  };
+
+  return { session };
+}
+
 function createSdkLoader(fakeSession: ReturnType<typeof createFakeSession>) {
   return async () => ({
     getAgentDir: () => "/tmp/pi-agent",
@@ -303,6 +383,63 @@ describe("PiProviderAdapterCandidateLive", () => {
 
         yield* adapter.stopAll();
       }),
+    );
+
+    it.effect("keeps one thread turn snapshot across internal Pi tool-use turns", () =>
+      Effect.scoped(
+        Effect.gen(function* () {
+          const adapter = yield* PiProviderAdapterCandidate;
+          const fakeSession = createMultiTurnToolUseSession();
+          const threadId = ThreadId.make("thread-pi-bridge-multi-turn");
+
+          yield* adapter.startSession({
+            provider: "pi",
+            threadId,
+            cwd: process.cwd(),
+            runtimeMode: "full-access",
+            sdkLoader: createSdkLoader(fakeSession),
+          });
+
+          const turn = yield* adapter.sendTurn({
+            threadId,
+            input: "Inspect first, then answer.",
+          });
+
+          const threadSnapshot = yield* adapter.readThread(threadId);
+          assert.equal(threadSnapshot.turns.length, 1);
+          assert.equal(threadSnapshot.turns[0]?.id, turn.turnId);
+          assert.deepEqual(
+            threadSnapshot.turns[0]?.items.map((event) => event.type),
+            [
+              "turn.started",
+              "item.started",
+              "content.delta",
+              "item.completed",
+              "item.started",
+              "item.completed",
+              "item.started",
+              "content.delta",
+              "item.completed",
+              "turn.completed",
+              "session.state.changed",
+            ],
+          );
+
+          const completed = threadSnapshot.turns[0]?.items.find(
+            (event) => event.type === "turn.completed",
+          );
+          assert.equal(completed?.type, "turn.completed");
+          if (completed?.type === "turn.completed") {
+            assert.equal(completed.turnId, turn.turnId);
+            assert.deepEqual(completed.payload, {
+              state: "completed",
+              stopReason: "stop",
+            });
+          }
+
+          yield* adapter.stopAll();
+        }),
+      ),
     );
   });
 });

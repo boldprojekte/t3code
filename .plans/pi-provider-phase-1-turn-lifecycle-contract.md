@@ -1,6 +1,6 @@
 # Subplan: Pi Phase 1 Turn Lifecycle Contract
 
-Status: active
+Status: done
 
 ## Role of this document
 This is the focused execution subplan for the remaining Phase 1 work after the real-thread exerciser.
@@ -97,3 +97,30 @@ Do not call Phase 1 done until all of the following are true:
 3. unsupported paths have been re-checked against the chosen contract
 4. the progress document has been updated at the phase stop point
 5. the repo quality gates pass
+
+## Results
+Observed on 2026-04-23 with a fresh real run of `apps/server/scripts/pi-provider-exerciser.ts` against this repository:
+
+1. One prompt continued across at least ten internal Pi turns with repeated `turn_end` events carrying `stopReason: toolUse`.
+2. Under the old projection, those internal boundaries produced multiple visible `turn.completed` events and repeated ready-state transitions even though the outer `sendTurn()` call was still in flight.
+3. The real run timed out after 180s while Pi was still working, which confirmed that the first visible `turn.completed (toolUse)` was not the end of the user-visible prompt lifecycle.
+
+Chosen contract:
+
+1. One visible T3 turn maps to one full Pi prompt lifecycle.
+2. Internal Pi `toolUse` boundaries stay internal to the Pi-owned mapping layer.
+3. `sendTurn()` resolves when the underlying Pi prompt resolves, not when the first internal Pi turn ends.
+4. The local bridge emits one visible `turn.started` at the beginning of the prompt lifecycle and one visible `turn.completed` when the lifecycle actually finishes.
+5. Subsequent internal Pi turns after `toolUse` reuse the original visible turn id for streamed content and tool activity.
+
+Implementation result:
+
+1. `apps/server/src/provider/piAdapterCandidate.ts` now keeps the active visible turn open across internal `toolUse` boundaries.
+2. Intermediate Pi `turn_end` with `stopReason: toolUse` no longer emits visible `turn.completed` or ready-state transitions.
+3. New tests in `apps/server/src/provider/piAdapterCandidate.test.ts` and `apps/server/src/provider/Layers/PiProviderAdapterCandidate.test.ts` lock this behavior in.
+4. `bun fmt`, `bun lint`, `bun typecheck`, `bun run build`, and `bun run test` passed for this stop point. Lint still reports pre-existing repo warnings only.
+
+Next slice after this document:
+
+1. Re-check unsupported paths against the chosen lifecycle contract, especially plan mode and future slash-command execution.
+2. Only after that recheck should Phase 2 shared-contract work start.

@@ -371,21 +371,27 @@ class PiRuntimeEventMapper {
 
       case "turn_start": {
         const providerTurnId = readNumber(rawEvent.turnIndex);
-        const turnId = this.pendingTurnIds.shift() ?? this.makeSyntheticTurnId();
+        const isNewVisibleTurn = !this.activeTurnId;
+        const turnId =
+          this.activeTurnId ?? this.pendingTurnIds.shift() ?? this.makeSyntheticTurnId();
         this.activeTurnId = turnId;
-        this.assistantMessageCounter = 0;
+        if (isNewVisibleTurn) {
+          this.assistantMessageCounter = 0;
+        }
         this.activeAssistantItemId = undefined;
-        this.emit({
-          type: "turn.started",
-          turnId,
-          payload: {},
-          raw: rawEvent,
-          createdAt: createdAtFromPiEvent(rawEvent, this.now),
-          providerRefs:
-            providerTurnId !== undefined
-              ? providerRefsFromIds({ providerTurnId: String(providerTurnId) })
-              : undefined,
-        });
+        if (isNewVisibleTurn) {
+          this.emit({
+            type: "turn.started",
+            turnId,
+            payload: {},
+            raw: rawEvent,
+            createdAt: createdAtFromPiEvent(rawEvent, this.now),
+            providerRefs:
+              providerTurnId !== undefined
+                ? providerRefsFromIds({ providerTurnId: String(providerTurnId) })
+                : undefined,
+          });
+        }
         return;
       }
 
@@ -395,6 +401,12 @@ class PiRuntimeEventMapper {
         const providerTurnId = readNumber(rawEvent.turnIndex);
         const message = isRecord(rawEvent.message) ? rawEvent.message : undefined;
         const turnState = turnStateFromAssistantMessage(message);
+        const stopReason = readString(message?.stopReason);
+        const isIntermediateToolUseBoundary = stopReason === "toolUse" && turnState === "completed";
+        if (isIntermediateToolUseBoundary) {
+          this.activeAssistantItemId = undefined;
+          return;
+        }
         this.emit({
           type: "turn.completed",
           turnId,
@@ -403,9 +415,7 @@ class PiRuntimeEventMapper {
             ...(readString(message?.errorMessage)
               ? { errorMessage: readString(message?.errorMessage) }
               : {}),
-            ...(readString(message?.stopReason)
-              ? { stopReason: readString(message?.stopReason) }
-              : {}),
+            ...(stopReason ? { stopReason } : {}),
           },
           raw: rawEvent,
           createdAt: createdAtFromPiEvent(rawEvent, this.now),
