@@ -185,7 +185,6 @@ describe("createPiAdapterCandidate", () => {
       sessionId: "pi-session-1",
       sessionFile: "/tmp/pi-session-1.jsonl",
     });
-    expect(fakeSession.session.bindExtensions).toHaveBeenCalledWith({});
     expect(fakeSession.session.prompt).toHaveBeenCalledWith("Bitte lies die wichtigsten Dateien.");
     expect(fakeSession.session.abort).toHaveBeenCalledTimes(1);
     expect(dispose).toHaveBeenCalledTimes(1);

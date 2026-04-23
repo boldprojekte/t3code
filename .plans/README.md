@@ -1,14 +1,35 @@
 # Maintainability Plans
 
-1. `01-shared-model-normalization.md`
-2. `02-typed-ipc-boundaries.md`
-3. `03-split-codex-app-server-manager.md`
-4. `04-split-chatview-component.md`
-5. `05-zod-persisted-state-validation.md`
-6. `06-provider-logstream-lifecycle.md`
-7. `07-ci-quality-gates.md`
-8. `08-precommit-format-and-lint.md`
-9. `09-event-state-test-expansion.md`
-10. `10-unify-process-session-abstraction.md`
-11. `pi-provider-integration-daily-usable.md`
-12. `pi-provider-phase-0-server-spike.md`
+## Pi provider docs
+- [PRD: Pi Provider Integration for Daily-Usable Multi-Thread Workflows](./pi-provider-integration-daily-usable.md)
+- [Pi Provider Progress](./pi-provider-progress.md)
+- [Subplan: Pi Phase 1 Local Real-Thread Exerciser](./pi-provider-phase-1-local-real-thread-exerciser.md)
+
+## Other plans
+1. [01-shared-model-normalization.md](./01-shared-model-normalization.md)
+2. [02-typed-ipc-boundaries.md](./02-typed-ipc-boundaries.md)
+3. [03-split-codex-app-server-manager.md](./03-split-codex-app-server-manager.md)
+4. [04-split-chatview-component.md](./04-split-chatview-component.md)
+5. [05-zod-persisted-state-validation.md](./05-zod-persisted-state-validation.md)
+6. [06-provider-logstream-lifecycle.md](./06-provider-logstream-lifecycle.md)
+7. [07-ci-quality-gates.md](./07-ci-quality-gates.md)
+8. [08-precommit-format-and-lint.md](./08-precommit-format-and-lint.md)
+9. [09-event-state-test-expansion.md](./09-event-state-test-expansion.md)
+10. [10-unify-process-session-abstraction.md](./10-unify-process-session-abstraction.md)
+11. [git-flows-test-plan.md](./git-flows-test-plan.md)
+12. [git-flows-integration-tests.md](./git-flows-integration-tests.md)
+13. [git-integration-branch-picker-worktrees.md](./git-integration-branch-picker-worktrees.md)
+14. [branch-environment-picker-in-chatview-input.md](./branch-environment-picker-in-chatview-input.md)
+15. [11-effect.md](./11-effect.md)
+16. [12-effect-new.md](./12-effect-new.md)
+17. [13-provider-service-integration-tests.md](./13-provider-service-integration-tests.md)
+18. [14-server-authoritative-event-sourcing-cleanup.md](./14-server-authoritative-event-sourcing-cleanup.md)
+19. [15-effect-server.md](./15-effect-server.md)
+20. [16-pr89-review-remediation-phases.md](./16-pr89-review-remediation-phases.md)
+21. [16c-pr89-remediation-checklist.md](./16c-pr89-remediation-checklist.md)
+22. [17-claude-agent.md](./17-claude-agent.md)
+23. [17-provider-neutral-runtime-determinism.md](./17-provider-neutral-runtime-determinism.md)
+24. [18-server-auth-model.md](./18-server-auth-model.md)
+25. [spec-1-1-cutover-plan.md](./spec-1-1-cutover-plan.md)
+26. [spec-contract-matrix.md](./spec-contract-matrix.md)
+27. [effect-atom.md](./effect-atom.md)

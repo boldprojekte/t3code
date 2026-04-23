@@ -23,7 +23,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:process-reaper": "vitest run src/server.test.ts src/provider/Layers/ClaudeAdapter.test.ts src/provider/Layers/ProviderSessionDirectory.test.ts src/provider/Layers/ProviderSessionReaper.test.ts src/provider/Layers/CodexAdapter.test.ts",
-    "pi:spike": "bun scripts/pi-sdk-spike.ts"
+    "pi:spike": "bun scripts/pi-sdk-spike.ts",
+    "pi:provider:exercise": "bun scripts/pi-provider-exerciser.ts"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.2.111",

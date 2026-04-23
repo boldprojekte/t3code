@@ -19,6 +19,18 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
+function isObjectLike(value: unknown): value is Record<string, unknown> | Function {
+  return (typeof value === "object" && value !== null) || typeof value === "function";
+}
+
+function isSessionManagerStaticLike(value: unknown): value is PiSessionManagerStaticLike {
+  if (!isObjectLike(value)) {
+    return false;
+  }
+  const candidate = value as { create?: unknown; open?: unknown };
+  return typeof candidate.create === "function" && typeof candidate.open === "function";
+}
+
 function readString(value: unknown): string | undefined {
   return typeof value === "string" && value.trim().length > 0 ? value : undefined;
 }
@@ -97,15 +109,28 @@ interface PiSlashCommandInfo {
   readonly source?: string;
   readonly sourceInfo?: {
     readonly path?: string;
+    readonly source?: string;
+    readonly scope?: string;
+    readonly origin?: string;
+    readonly baseDir?: string;
   };
+}
+
+interface PiExtensionRunnerLike {
+  getRegisteredCommands(): ReadonlyArray<{
+    readonly name: string;
+    readonly invocationName?: string;
+    readonly description?: string;
+    readonly sourceInfo?: PiSlashCommandInfo["sourceInfo"];
+  }>;
 }
 
 interface PiSessionLike {
   readonly sessionFile?: string;
   readonly sessionId: string;
-  bindExtensions(bindings: Record<string, never>): Promise<void>;
+  readonly extensionRunner?: PiExtensionRunnerLike;
   subscribe(listener: (event: unknown) => void): () => void;
-  getCommands(): ReadonlyArray<PiSlashCommandInfo>;
+  getCommands?(): ReadonlyArray<PiSlashCommandInfo>;
   prompt(text: string): Promise<void>;
   abort(): Promise<void>;
 }
@@ -171,10 +196,7 @@ function assertPiSdkModule(moduleNamespace: unknown): PiSdkModule {
   if (typeof getAgentDir !== "function") {
     throw new PiSdkShapeError("Pi SDK is missing getAgentDir().");
   }
-  if (!isRecord(sessionManager)) {
-    throw new PiSdkShapeError("Pi SDK is missing SessionManager.");
-  }
-  if (typeof sessionManager.create !== "function" || typeof sessionManager.open !== "function") {
+  if (!isSessionManagerStaticLike(sessionManager)) {
     throw new PiSdkShapeError("Pi SDK SessionManager must provide create() and open().");
   }
   if (typeof createAgentSessionServices !== "function") {
@@ -353,6 +375,44 @@ function normalizeCommandSource(source: string | undefined): PiDiscoveredCommand
   }
 }
 
+function inferCommandSource(command: PiSlashCommandInfo): PiDiscoveredCommandSource {
+  const explicit = normalizeCommandSource(readString(command.source));
+  if (explicit !== "unknown") {
+    return explicit;
+  }
+
+  const commandPath = readString(command.sourceInfo?.path)?.toLowerCase() ?? "";
+  if (commandPath.includes("/skills/") || commandPath.endsWith("skill.md")) {
+    return "skill";
+  }
+  if (commandPath.includes("/prompts/") || commandPath.endsWith(".prompt.md")) {
+    return "prompt";
+  }
+  if (commandPath.length > 0) {
+    return "extension";
+  }
+  return "unknown";
+}
+
+function discoverPiSlashCommands(session: PiSessionLike): ReadonlyArray<PiSlashCommandInfo> {
+  if (typeof session.getCommands === "function") {
+    return session.getCommands();
+  }
+
+  if (session.extensionRunner) {
+    return session.extensionRunner.getRegisteredCommands().map((command) => {
+      const description = readString(command.description);
+      return {
+        name: readString(command.invocationName) ?? command.name,
+        ...(description ? { description } : {}),
+        ...(command.sourceInfo ? { sourceInfo: command.sourceInfo } : {}),
+      } satisfies PiSlashCommandInfo;
+    });
+  }
+
+  return [];
+}
+
 export function normalizePiSlashCommands(
   commands: ReadonlyArray<PiSlashCommandInfo>,
 ): ReadonlyArray<PiDiscoveredCommand> {
@@ -364,7 +424,7 @@ export function normalizePiSlashCommands(
       continue;
     }
 
-    const source = normalizeCommandSource(readString(command.source));
+    const source = inferCommandSource(command);
     const key = `${source}:${name}`;
     if (normalized.has(key)) {
       continue;
@@ -548,7 +608,6 @@ export async function createPiSessionSpike(
 
   const bindSession = async (session: PiSessionLike) => {
     unsubscribe();
-    await session.bindExtensions({});
     unsubscribe = session.subscribe((event) => {
       options.onRawEvent?.(event);
       for (const mappedEvent of mapPiSessionEvent(event)) {
@@ -585,7 +644,7 @@ export async function createPiSessionSpike(
       };
     },
     async getCommands() {
-      return normalizePiSlashCommands(runtime.session.getCommands());
+      return normalizePiSlashCommands(discoverPiSlashCommands(runtime.session));
     },
     async prompt(text: string) {
       const promptText = readString(text);

@@ -1,5 +1,18 @@
 # PRD: Pi Provider Integration for Daily-Usable Multi-Thread Workflows
 
+## Document role
+This file is the state of truth for the Pi provider effort.
+
+Use it for the durable product shape:
+1. goals
+2. non-goals
+3. architecture constraints
+4. roadmap phases
+5. release criteria
+
+Current execution status does not live here. Track that in [`pi-provider-progress.md`](./pi-provider-progress.md).
+Detailed implementation slices also do not live here. Put those into focused subplans and link them from the progress document.
+
 ## Summary
 Integrate Pi into T3 Code as a first-class provider with a deliberately scoped goal: daily-usable multi-thread work in the T3 UI while keeping Pi's real agent power under the hood.
 
@@ -20,7 +33,7 @@ After this work, Jan should be able to:
 
 1. Open T3 Code and select `Pi` as a provider.
 2. Create many threads that each run against an isolated Pi session.
-3. Use Pi models, tools, skills, prompt templates, MCP integrations, subagents, and project-local Pi config from within T3.
+3. Use Pi through its normal runtime path so models, tools, skills, prompt templates, MCP integrations, subagents, and project-local Pi config remain available where they do not depend on unsupported TUI-only UI.
 4. See slash commands and skills in the composer when available.
 5. Let Pi work on real repositories inside T3 without feeling like Pi was reduced to a toy text backend.
 
@@ -57,7 +70,7 @@ After this work, Jan should be able to:
 6. Multiple concurrent Pi-backed threads.
 7. Pi command discovery for extension commands, prompt templates, and skills.
 8. Invocation of Pi slash commands by sending `/command` through the active Pi session.
-9. Project-local and user-level Pi resources: skills, prompts, extensions, packages, AGENTS files, MCP.
+9. Project-local and user-level Pi resources stay available through Pi's normal runtime path: skills, prompts, extensions, packages, AGENTS files, MCP.
 10. Clean degradation for unsupported Pi UI-specific features.
 
 ### Explicitly out of scope for v1
@@ -125,9 +138,10 @@ Pi must retain the capabilities that make it worth integrating.
 Requirements:
 1. Keep Pi's default resource loading behavior unless T3 has a concrete reason to override it.
 2. Respect user-level and project-level Pi resources.
-3. Preserve Pi tools, custom tools, MCP integrations, extensions, skills, and prompt templates.
-4. Preserve Pi subagents and web tools through the normal Pi runtime path.
+3. Preserve Pi tools, custom tools, MCP integrations, extensions, skills, and prompt templates through the normal runtime path.
+4. Preserve Pi subagents and web tools through the normal runtime path.
 5. Avoid reducing Pi to a custom text completion provider.
+6. Treat TUI-only Pi behaviors as unsupported unless they can be bridged cleanly into T3.
 
 ### 6. Slash command, prompt template, and skill discovery
 Jan explicitly wants slash commands and skills if possible.
@@ -184,6 +198,15 @@ Reason:
 2. It ensures existing skills, prompts, extensions, AGENTS files, packages, and MCP setups continue to work.
 3. It avoids building a second Pi config system inside T3.
 
+## Current baseline the remaining work builds on
+These are not progress checkboxes. They describe the intended architectural baseline for the remaining roadmap.
+
+1. A thin Pi SDK host should exist server-side and stay separate from T3's shared contracts.
+2. Pi runtime event mapping should stay in a Pi-owned boundary.
+3. Session ownership should stay in a server-side Pi layer, one Pi session per T3 thread.
+4. A provider-shaped local bridge may exist before Pi is introduced to shared contracts.
+5. Shared contracts, registry wiring, provider status, and web picker work come after the local runtime path is proven.
+
 ## Likely Technical Shape
 ### Server side
 Likely new or changed areas:
@@ -211,50 +234,44 @@ Likely responsibilities:
 4. fetch Pi commands for the active session
 5. persist T3 thread to Pi session bindings
 
-## Phased Delivery
-### Phase 0: Spike and contract confirmation
-1. Verify SDK-first integration in a thin server-only prototype.
-2. Confirm command discovery through `pi.getCommands()`.
-3. Confirm that project-local Pi resources load correctly inside a non-TUI runtime.
-4. Confirm what subset of Pi extension UI interactions can be bridged sanely.
+## Remaining roadmap
+Progress against these phases is tracked in [`pi-provider-progress.md`](./pi-provider-progress.md).
 
-### Phase 1: Provider contracts and picker support
+### Phase 1: Local real-thread exerciser and server-only hardening
+1. Exercise the provider-shaped Pi bridge against real threads without touching shared contracts yet.
+2. Confirm the thread-owned Pi session lifecycle on real repositories.
+3. Harden event projection, command discovery, abort, stop, and resume assumptions under real usage.
+4. Keep unsupported pieces explicit instead of silently guessing.
+
+### Phase 2: Shared provider contracts and provider status
 1. Add `pi` to provider contracts and model selection contracts.
 2. Add Pi display metadata and provider ordering.
-3. Make the web app tolerate Pi as a provider without runtime work yet.
+3. Add a Pi provider snapshot service for install, version, auth, and model inventory.
+4. Make the web app and server contracts tolerate Pi as a real provider.
 
-### Phase 2: Pi provider status and model inventory
-1. Add a Pi provider snapshot service.
-2. Surface version, auth, and model inventory.
-3. Wire Pi into provider settings and picker UX.
+### Phase 3: ProviderService and orchestration integration
+1. Introduce a real Pi provider adapter on the shared provider surface.
+2. Wire Pi into provider registry and provider service resolution.
+3. Feed canonical Pi runtime events into provider runtime ingestion.
+4. Persist Pi session bindings in the normal provider session runtime path.
 
-### Phase 3: Session runtime and core prompt loop
-1. Create Pi adapter and runtime owner in `apps/server`.
-2. Map T3 thread start to Pi session creation.
-3. Support prompt, stream, tool activity, and abort.
-4. Persist the Pi session binding.
-
-### Phase 4: Command and skill discovery
-1. Fetch command inventory from Pi.
-2. Surface commands in the composer.
-3. Allow slash command invocation in active Pi threads.
+### Phase 4: Composer commands and thread UX
+1. Surface Pi command inventory in the composer.
+2. Allow slash command invocation in active Pi threads.
+3. Hide or disable unsupported actions for Pi threads.
 4. Verify prompt templates and skill commands execute correctly.
 
-### Phase 5: Resume and multi-thread hardening
+### Phase 5: Resume, multi-thread hardening, and minimal UI bridging
 1. Resume Pi sessions after restart.
 2. Validate many independent Pi-backed threads.
 3. Ensure thread switching does not leak state across sessions.
-4. Harden provider session cleanup and stale session recovery.
+4. Bridge only the minimal useful confirm, select, and text input flows.
+5. Keep unsupported extension UI failures explicit and visible.
 
-### Phase 6: UI boundary and unsupported-action gating
-1. Add clear unsupported behavior for rollback and Pi TUI-specific actions.
-2. Bridge minimal confirm, select, and input dialogs.
-3. Add visible errors for unsupported extension UI.
-
-### Phase 7: Hardening and release gate
+### Phase 6: Hardening and release gate
 1. Add integration tests for prompt loop, tool activity, commands, and resume.
-2. Run format, lint, typecheck, and targeted tests.
-3. Validate multi-thread behavior manually with a real Pi-configured workspace.
+2. Validate multi-thread behavior manually with a real Pi-configured workspace.
+3. Run full project verification before calling the slice done.
 
 ## Risks
 1. Pi command discovery may depend on extension/runtime binding details that are less documented than RPC.
@@ -264,7 +281,7 @@ Likely responsibilities:
 5. Auth state may not map one-to-one with T3's current provider status expectations.
 
 ## Mitigations
-1. Prove command discovery in Phase 0 before committing to UX details.
+1. Prove command discovery and real-thread behavior before locking in UX details.
 2. Keep a strict supported UI subset for Pi extension interactions.
 3. Persist explicit Pi session metadata instead of inferring resume state.
 4. Keep event mapping inside the Pi adapter boundary.
@@ -278,11 +295,12 @@ Likely responsibilities:
 5. Should command inventory be fetched lazily per active thread or cached per environment?
 
 ## Validation
-Minimum validation for the plan to count as delivered:
-1. The fork exists at `~/Projects/t3code` and tracks both origin and upstream.
-2. This PRD lives inside the repo under `.plans/`.
-3. The plan is explicit about goals, non-goals, risks, phased delivery, and unsupported features.
-4. The plan reflects Jan's stated priority: multi-thread usability with full Pi power, not TUI parity.
+Minimum validation for this document to count as maintained:
+1. This PRD lives inside the repo under `.plans/`.
+2. It stays explicit about goals, non-goals, risks, phased delivery, and unsupported features.
+3. It reflects Jan's stated priority: multi-thread usability with full Pi power, not TUI parity.
+4. It reflects the current intended roadmap, not stale one-off spike sequencing.
+5. It points to the progress doc for actual execution state.
 
 ## Done Criteria for the future implementation
 The implementation should only count as done when all of the following are true:
@@ -292,5 +310,5 @@ The implementation should only count as done when all of the following are true:
 3. Tooling, skills, prompt templates, and slash commands work in a way that is actually useful.
 4. Unsupported actions for Pi threads are hidden or disabled instead of failing ambiguously.
 5. Multi-thread behavior is stable.
-6. `bun fmt`, `bun lint`, and `bun typecheck` pass.
+6. `bun fmt`, `bun lint`, `bun typecheck`, `bun run build`, and `bun run test` pass.
 7. Targeted tests covering the Pi provider path pass.

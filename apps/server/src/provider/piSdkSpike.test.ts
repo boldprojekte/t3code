@@ -159,6 +159,41 @@ describe("loadPiSdkModule", () => {
       }),
     ).rejects.toBeInstanceOf(PiSdkShapeError);
   });
+
+  it("accepts SessionManager exported as a class with static helpers", async () => {
+    class FakeSessionManager {
+      static create(cwd: string) {
+        return { cwd };
+      }
+
+      static open(sessionFile: string) {
+        return { sessionFile };
+      }
+    }
+
+    const module = await loadPiSdkModule({
+      packageEntryPath: "/fake/pi/index.js",
+      loader: async () => ({
+        getAgentDir: () => "/tmp/pi",
+        SessionManager: FakeSessionManager,
+        createAgentSessionServices: vi.fn(async () => ({})),
+        createAgentSessionFromServices: vi.fn(async () => ({
+          session: createFakeSession().session,
+          diagnostics: [],
+        })),
+        createAgentSessionRuntime: vi.fn(async () => ({
+          session: createFakeSession().session,
+          diagnostics: [],
+          dispose: vi.fn(async () => {}),
+        })),
+      }),
+    });
+
+    expect(module.SessionManager.create("/repo")).toEqual({ cwd: "/repo" });
+    expect(module.SessionManager.open("/tmp/session.jsonl")).toEqual({
+      sessionFile: "/tmp/session.jsonl",
+    });
+  });
 });
 
 describe("createPiSessionSpike", () => {
@@ -214,7 +249,6 @@ describe("createPiSessionSpike", () => {
       }),
     });
 
-    expect(fakeSession.session.bindExtensions).toHaveBeenCalledWith({});
     expect(rebindSession).toBeTypeOf("function");
     expect(spike.agentDir).toBe("/tmp/pi-agent");
     expect(spike.getSessionInfo()).toEqual({
