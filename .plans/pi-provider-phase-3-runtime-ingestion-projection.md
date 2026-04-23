@@ -1,6 +1,6 @@
 # Subplan: Pi Phase 3 Runtime Ingestion and Projection Validation
 
-Status: planned
+Status: done
 
 ## Role of this document
 This is the next focused Phase 3 slice after the Pi adapter and registry seam.
@@ -87,6 +87,17 @@ bun run test
 ```
 
 Do not use `bun test`; this repo requires `bun run test`.
+
+## Result
+Done in this slice:
+1. Added ProviderService coverage proving Pi runtime events are republished through `ProviderService.streamEvents` and written to the canonical event logger with the correct thread segment.
+2. Extended ProviderRuntimeIngestion test harnesses to seed Pi-backed project/thread/session state.
+3. Added Pi normal lifecycle projection coverage for `turn.started`, assistant item lifecycle, `content.delta`, `turn.completed`, and `session.state.changed`.
+4. Added Pi tool-use projection coverage showing tool activity remains inside one visible turn lifecycle until the final Pi `turn.completed` event.
+5. Added Pi `runtime.error` projection coverage for errored session state and runtime error activity.
+
+Next slice:
+- [Pi Phase 3 Session Binding and Resume](./pi-provider-phase-3-session-binding-resume.md)
 
 ## Stop criteria
 Do not mark this slice done until all of the following are true:

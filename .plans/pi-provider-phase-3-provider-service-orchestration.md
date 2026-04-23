@@ -35,7 +35,8 @@ Phase 2 made `pi` contract-valid and visible to provider status paths, but delib
 
 ## Focused execution slices
 - [done] [Pi Phase 3 Adapter and Registry Seam](./pi-provider-phase-3-adapter-registry-seam.md)
-- [planned] [Pi Phase 3 Runtime Ingestion and Projection Validation](./pi-provider-phase-3-runtime-ingestion-projection.md)
+- [done] [Pi Phase 3 Runtime Ingestion and Projection Validation](./pi-provider-phase-3-runtime-ingestion-projection.md)
+- [planned] [Pi Phase 3 Session Binding and Resume](./pi-provider-phase-3-session-binding-resume.md)
 
 ## Proposed work steps
 ### 1. Adapter seam

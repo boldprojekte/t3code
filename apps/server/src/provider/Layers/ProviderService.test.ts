@@ -481,6 +481,78 @@ it.effect("ProviderServiceLive writes canonical events to the emitting thread se
   }).pipe(Effect.provide(NodeServices.layer)),
 );
 
+it.effect("ProviderServiceLive republishes and logs Pi runtime events", () =>
+  Effect.gen(function* () {
+    const pi = makeFakeCodexAdapter("pi");
+    const canonicalEvents: ProviderRuntimeEvent[] = [];
+    const canonicalThreadIds: Array<string | null> = [];
+    const registry: typeof ProviderAdapterRegistry.Service = {
+      getByProvider: (provider) =>
+        provider === "pi"
+          ? Effect.succeed(pi.adapter)
+          : Effect.fail(new ProviderUnsupportedError({ provider })),
+      listProviders: () => Effect.succeed(["pi"]),
+    };
+    const runtimeRepositoryLayer = ProviderSessionRuntimeRepositoryLive.pipe(
+      Layer.provide(SqlitePersistenceMemory),
+    );
+    const directoryLayer = ProviderSessionDirectoryLive.pipe(Layer.provide(runtimeRepositoryLayer));
+    const providerLayer = makeProviderServiceLive({
+      canonicalEventLogger: {
+        filePath: "memory://provider-pi-canonical-events",
+        write: (event, threadId) => {
+          canonicalEvents.push(event as ProviderRuntimeEvent);
+          canonicalThreadIds.push(threadId ?? null);
+          return Effect.void;
+        },
+        close: () => Effect.void,
+      },
+    }).pipe(
+      Layer.provide(Layer.succeed(ProviderAdapterRegistry, registry)),
+      Layer.provide(directoryLayer),
+      Layer.provide(defaultServerSettingsLayer),
+      Layer.provide(AnalyticsService.layerTest),
+    );
+
+    yield* Effect.gen(function* () {
+      const provider = yield* ProviderService;
+      const receivedRef = yield* Ref.make<Array<ProviderRuntimeEvent>>([]);
+      const consumer = yield* Stream.take(provider.streamEvents, 1).pipe(
+        Stream.runForEach((event) => Ref.update(receivedRef, (current) => [...current, event])),
+        Effect.forkChild,
+      );
+      yield* sleep(20);
+
+      pi.emit({
+        eventId: asEventId("evt-pi-canonical-thread-segment"),
+        provider: "pi",
+        threadId: asThreadId("thread-pi-canonical-thread-segment"),
+        createdAt: new Date().toISOString(),
+        type: "session.state.changed",
+        payload: {
+          state: "ready",
+        },
+        raw: {
+          source: "pi.sdk.session-event",
+          method: "agent_end",
+          payload: { type: "agent_end" },
+        },
+      });
+
+      yield* Fiber.join(consumer);
+      const received = yield* Ref.get(receivedRef);
+      assert.equal(received.length, 1);
+      assert.equal(received[0]?.provider, "pi");
+      assert.equal(received[0]?.eventId, "evt-pi-canonical-thread-segment");
+      assert.equal(received[0]?.raw?.source, "pi.sdk.session-event");
+    }).pipe(Effect.provide(providerLayer));
+
+    assert.equal(canonicalEvents.length, 1);
+    assert.equal(canonicalEvents[0]?.provider, "pi");
+    assert.deepEqual(canonicalThreadIds, ["thread-pi-canonical-thread-segment"]);
+  }).pipe(Effect.provide(NodeServices.layer)),
+);
+
 it.effect("ProviderServiceLive keeps persisted resumable sessions on startup", () =>
   Effect.gen(function* () {
     const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "t3-provider-service-"));

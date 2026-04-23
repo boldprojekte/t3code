@@ -196,8 +196,14 @@ describe("ProviderRuntimeIngestion", () => {
     }
   });
 
-  async function createHarness(options?: { serverSettings?: Partial<ServerSettings> }) {
+  async function createHarness(options?: {
+    provider?: ProviderRuntimeEvent["provider"];
+    model?: string;
+    serverSettings?: Partial<ServerSettings>;
+  }) {
     const workspaceRoot = makeTempDir("t3-provider-project-");
+    const providerKind = options?.provider ?? "codex";
+    const model = options?.model ?? "gpt-5-codex";
     fs.mkdirSync(path.join(workspaceRoot, ".git"));
     const provider = createProviderServiceHarness();
     const orchestrationLayer = OrchestrationEngineLive.pipe(
@@ -232,8 +238,8 @@ describe("ProviderRuntimeIngestion", () => {
         title: "Provider Project",
         workspaceRoot,
         defaultModelSelection: {
-          provider: "codex",
-          model: "gpt-5-codex",
+          provider: providerKind,
+          model,
         },
         createdAt,
       }),
@@ -246,8 +252,8 @@ describe("ProviderRuntimeIngestion", () => {
         projectId: asProjectId("project-1"),
         title: "Thread",
         modelSelection: {
-          provider: "codex",
-          model: "gpt-5-codex",
+          provider: providerKind,
+          model,
         },
         interactionMode: DEFAULT_PROVIDER_INTERACTION_MODE,
         runtimeMode: "approval-required",
@@ -264,7 +270,7 @@ describe("ProviderRuntimeIngestion", () => {
         session: {
           threadId: ThreadId.make("thread-1"),
           status: "ready",
-          providerName: "codex",
+          providerName: providerKind,
           runtimeMode: "approval-required",
           activeTurnId: null,
           updatedAt: createdAt,
@@ -274,7 +280,7 @@ describe("ProviderRuntimeIngestion", () => {
       }),
     );
     provider.setSession({
-      provider: "codex",
+      provider: providerKind,
       status: "ready",
       runtimeMode: "approval-required",
       threadId: ThreadId.make("thread-1"),
@@ -2261,6 +2267,275 @@ describe("ProviderRuntimeIngestion", () => {
         : undefined;
     expect(resolvedPayload?.requestKind).toBe("command");
     expect(resolvedPayload?.requestType).toBe("command_execution_approval");
+  });
+
+  it("projects a Pi turn lifecycle into the provider-neutral read model", async () => {
+    const harness = await createHarness({ provider: "pi", model: "default" });
+    const now = new Date().toISOString();
+
+    harness.emit({
+      type: "turn.started",
+      eventId: asEventId("evt-pi-turn-started"),
+      provider: "pi",
+      createdAt: now,
+      threadId: asThreadId("thread-1"),
+      turnId: asTurnId("pi-turn-normal"),
+      payload: {},
+      raw: {
+        source: "pi.sdk.session-event",
+        method: "turn_start",
+        payload: { type: "turn_start" },
+      },
+    });
+
+    await waitForThread(
+      harness.engine,
+      (thread) =>
+        thread.session?.providerName === "pi" &&
+        thread.session?.status === "running" &&
+        thread.session?.activeTurnId === "pi-turn-normal",
+    );
+
+    harness.emit({
+      type: "item.started",
+      eventId: asEventId("evt-pi-assistant-started"),
+      provider: "pi",
+      createdAt: now,
+      threadId: asThreadId("thread-1"),
+      turnId: asTurnId("pi-turn-normal"),
+      itemId: asItemId("pi-assistant-item-normal"),
+      payload: {
+        itemType: "assistant_message",
+        status: "in_progress",
+      },
+    });
+    harness.emit({
+      type: "content.delta",
+      eventId: asEventId("evt-pi-assistant-delta"),
+      provider: "pi",
+      createdAt: now,
+      threadId: asThreadId("thread-1"),
+      turnId: asTurnId("pi-turn-normal"),
+      itemId: asItemId("pi-assistant-item-normal"),
+      payload: {
+        streamKind: "assistant_text",
+        delta: "Pi antwortet.",
+      },
+    });
+    harness.emit({
+      type: "item.completed",
+      eventId: asEventId("evt-pi-assistant-completed"),
+      provider: "pi",
+      createdAt: now,
+      threadId: asThreadId("thread-1"),
+      turnId: asTurnId("pi-turn-normal"),
+      itemId: asItemId("pi-assistant-item-normal"),
+      payload: {
+        itemType: "assistant_message",
+        status: "completed",
+      },
+    });
+    harness.emit({
+      type: "turn.completed",
+      eventId: asEventId("evt-pi-turn-completed"),
+      provider: "pi",
+      createdAt: now,
+      threadId: asThreadId("thread-1"),
+      turnId: asTurnId("pi-turn-normal"),
+      payload: {
+        state: "completed",
+        stopReason: "stop",
+      },
+      raw: {
+        source: "pi.sdk.session-event",
+        method: "turn_end",
+        payload: { type: "turn_end", stopReason: "stop" },
+      },
+    });
+    harness.emit({
+      type: "session.state.changed",
+      eventId: asEventId("evt-pi-session-ready"),
+      provider: "pi",
+      createdAt: now,
+      threadId: asThreadId("thread-1"),
+      payload: {
+        state: "ready",
+        reason: "Pi turn completed",
+      },
+      raw: {
+        source: "pi.sdk.session-event",
+        method: "agent_end",
+        payload: { type: "agent_end" },
+      },
+    });
+
+    const thread = await waitForThread(
+      harness.engine,
+      (entry) =>
+        entry.session?.providerName === "pi" &&
+        entry.session?.status === "ready" &&
+        entry.session?.activeTurnId === null &&
+        entry.messages.some(
+          (message: ProviderRuntimeTestMessage) =>
+            message.id === "assistant:pi-assistant-item-normal" && !message.streaming,
+        ),
+    );
+    const message = thread.messages.find(
+      (entry: ProviderRuntimeTestMessage) => entry.id === "assistant:pi-assistant-item-normal",
+    );
+
+    expect(message?.text).toBe("Pi antwortet.");
+    expect(message?.turnId).toBe("pi-turn-normal");
+    expect(thread.session?.lastError).toBeNull();
+  });
+
+  it("keeps Pi tool-use activity inside one visible turn lifecycle", async () => {
+    const harness = await createHarness({ provider: "pi", model: "default" });
+    const now = new Date().toISOString();
+
+    harness.emit({
+      type: "turn.started",
+      eventId: asEventId("evt-pi-tool-use-turn-started"),
+      provider: "pi",
+      createdAt: now,
+      threadId: asThreadId("thread-1"),
+      turnId: asTurnId("pi-turn-tool-use"),
+      payload: {},
+    });
+    harness.emit({
+      type: "item.completed",
+      eventId: asEventId("evt-pi-tool-use-read-completed"),
+      provider: "pi",
+      createdAt: now,
+      threadId: asThreadId("thread-1"),
+      turnId: asTurnId("pi-turn-tool-use"),
+      itemId: asItemId("pi-tool-read-1"),
+      payload: {
+        itemType: "dynamic_tool_call",
+        status: "completed",
+        title: "Read file",
+        data: {
+          toolCallId: "tool-read-1",
+          kind: "read",
+        },
+      },
+      raw: {
+        source: "pi.sdk.session-event",
+        method: "tool_execution_end",
+        payload: { type: "tool_execution_end", toolCallId: "tool-read-1" },
+      },
+    });
+
+    const midThread = await waitForThread(
+      harness.engine,
+      (thread) =>
+        thread.session?.providerName === "pi" &&
+        thread.session?.status === "running" &&
+        thread.session?.activeTurnId === "pi-turn-tool-use" &&
+        thread.activities.some(
+          (activity: ProviderRuntimeTestActivity) =>
+            activity.id === "evt-pi-tool-use-read-completed" && activity.kind === "tool.completed",
+        ),
+    );
+    expect(midThread.session?.status).toBe("running");
+
+    harness.emit({
+      type: "content.delta",
+      eventId: asEventId("evt-pi-tool-use-assistant-delta"),
+      provider: "pi",
+      createdAt: now,
+      threadId: asThreadId("thread-1"),
+      turnId: asTurnId("pi-turn-tool-use"),
+      itemId: asItemId("pi-assistant-after-tool"),
+      payload: {
+        streamKind: "assistant_text",
+        delta: "Fertig nach Tool.",
+      },
+    });
+    harness.emit({
+      type: "item.completed",
+      eventId: asEventId("evt-pi-tool-use-assistant-completed"),
+      provider: "pi",
+      createdAt: now,
+      threadId: asThreadId("thread-1"),
+      turnId: asTurnId("pi-turn-tool-use"),
+      itemId: asItemId("pi-assistant-after-tool"),
+      payload: {
+        itemType: "assistant_message",
+        status: "completed",
+      },
+    });
+    harness.emit({
+      type: "turn.completed",
+      eventId: asEventId("evt-pi-tool-use-turn-completed"),
+      provider: "pi",
+      createdAt: now,
+      threadId: asThreadId("thread-1"),
+      turnId: asTurnId("pi-turn-tool-use"),
+      payload: {
+        state: "completed",
+        stopReason: "stop",
+      },
+    });
+
+    const finalThread = await waitForThread(
+      harness.engine,
+      (thread) =>
+        thread.session?.providerName === "pi" &&
+        thread.session?.status === "ready" &&
+        thread.session?.activeTurnId === null &&
+        thread.messages.some(
+          (message: ProviderRuntimeTestMessage) =>
+            message.id === "assistant:pi-assistant-after-tool" && !message.streaming,
+        ),
+    );
+    const assistantMessagesForTurn = finalThread.messages.filter(
+      (message: ProviderRuntimeTestMessage) => message.turnId === "pi-turn-tool-use",
+    );
+    expect(assistantMessagesForTurn).toHaveLength(1);
+    expect(assistantMessagesForTurn[0]?.text).toBe("Fertig nach Tool.");
+  });
+
+  it("maps Pi runtime.error into errored session state and activity", async () => {
+    const harness = await createHarness({ provider: "pi", model: "default" });
+    const now = new Date().toISOString();
+
+    harness.emit({
+      type: "runtime.error",
+      eventId: asEventId("evt-pi-runtime-error"),
+      provider: "pi",
+      createdAt: now,
+      threadId: asThreadId("thread-1"),
+      turnId: asTurnId("pi-turn-error"),
+      payload: {
+        message: "Pi runtime exploded",
+      },
+      raw: {
+        source: "pi.sdk.session-event",
+        method: "error",
+        payload: { type: "error", message: "Pi runtime exploded" },
+      },
+    });
+
+    const thread = await waitForThread(
+      harness.engine,
+      (entry) =>
+        entry.session?.providerName === "pi" &&
+        entry.session?.status === "error" &&
+        entry.session?.activeTurnId === "pi-turn-error" &&
+        entry.session?.lastError === "Pi runtime exploded" &&
+        entry.activities.some((activity) => activity.id === "evt-pi-runtime-error"),
+    );
+    const activity = thread.activities.find(
+      (entry: ProviderRuntimeTestActivity) => entry.id === "evt-pi-runtime-error",
+    );
+    const activityPayload =
+      activity?.payload && typeof activity.payload === "object"
+        ? (activity.payload as Record<string, unknown>)
+        : undefined;
+
+    expect(activity?.kind).toBe("runtime.error");
+    expect(activityPayload?.message).toBe("Pi runtime exploded");
   });
 
   it("maps runtime.error into errored session state", async () => {
