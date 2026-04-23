@@ -24,7 +24,7 @@ Do not use this file as the durable product spec. The product roadmap and scope 
 - When a slice closes, also update the linked subplan status. If the next slice is different work, create or activate a new subplan here instead of silently continuing under an old one.
 
 ## Current summary
-Overall status: Phase 1 server-only Pi hardening and Phase 2 shared provider contracts/status are done. The next work is Phase 3 ProviderService and orchestration integration.
+Overall status: Phase 1 server-only Pi hardening and Phase 2 shared provider contracts/status are done. The next work is the first Phase 3 slice: Pi adapter and registry seam.
 
 Current position:
 1. thin SDK host exists
@@ -36,7 +36,7 @@ Current position:
 7. the local bridge now treats one visible T3 turn as one full Pi prompt lifecycle, even when Pi crosses multiple internal `toolUse` turn boundaries
 8. unsupported paths were re-checked against that lifecycle contract: plan mode remains an explicit hard failure and slash-command-shaped prompts are safe pass-through prompt text at this layer
 9. shared-contract and provider-status integration is implemented: `pi` is accepted in contracts, appears in provider status, and is tolerated by server and web provider metadata without enabling runtime execution yet
-10. ProviderService and orchestration integration has not started yet; it is now the next slice
+10. ProviderService and orchestration integration has not started yet; the first concrete Phase 3 slice is the Pi adapter and registry seam
 
 ## Status by roadmap phase
 
@@ -74,9 +74,10 @@ Done:
 ### Phase 3: ProviderService and orchestration integration
 Status: next
 
-Planned:
-- [ ] Build the real shared-contract Pi provider adapter
-- [ ] Register Pi in provider registry and provider service
+Next focused slice:
+- [ ] Execute [Pi Phase 3 Adapter and Registry Seam](./pi-provider-phase-3-adapter-registry-seam.md)
+
+Planned after that:
 - [ ] Feed canonical Pi runtime events into provider runtime ingestion
 - [ ] Persist Pi session bindings in normal provider runtime state
 
@@ -113,6 +114,7 @@ Planned:
 - [done] [Pi Phase 1 Unsupported Path Recheck](./pi-provider-phase-1-unsupported-path-recheck.md)
 - [done] [Pi Phase 2 Shared Contracts and Provider Status](./pi-provider-phase-2-shared-contracts-and-status.md)
 - [planned] [Pi Phase 3 ProviderService and Orchestration Integration](./pi-provider-phase-3-provider-service-orchestration.md)
+- [planned] [Pi Phase 3 Adapter and Registry Seam](./pi-provider-phase-3-adapter-registry-seam.md)
 
 When a concrete execution slice starts, add it here with status:
 - planned

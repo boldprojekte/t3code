@@ -33,6 +33,9 @@ Phase 2 made `pi` contract-valid and visible to provider status paths, but delib
 4. Rollback or `/tree` support.
 5. Web polish beyond whatever is required to prevent crashes when Pi is present.
 
+## Focused execution slices
+- [planned] [Pi Phase 3 Adapter and Registry Seam](./pi-provider-phase-3-adapter-registry-seam.md)
+
 ## Proposed work steps
 ### 1. Adapter seam
 1. Review `ProviderAdapter` and `ProviderService` expectations.
