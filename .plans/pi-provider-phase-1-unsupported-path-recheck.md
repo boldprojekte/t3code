@@ -1,6 +1,6 @@
 # Subplan: Pi Phase 1 Unsupported Path Recheck
 
-Status: planned
+Status: done
 
 ## Role of this document
 This is the next focused execution slice after the turn-lifecycle contract decision.
@@ -54,3 +54,19 @@ That removes the biggest ambiguity from Phase 1. The last Phase 1 question is wh
 1. Decide whether Phase 1 can now be called done.
 2. If yes, update `pi-provider-progress.md` before starting Phase 2.
 3. Run `bun fmt`, `bun lint`, `bun typecheck`, `bun run build`, and `bun run test` before closing the slice.
+
+## Results
+Observed and verified on 2026-04-23:
+
+1. Plan mode remains an explicit local bridge rejection. `sendTurn()` with `interactionMode: "plan"` returns `ProviderAdapterValidationError` with operation `sendTurn` and issue `Pi sendTurn does not support interactionMode 'plan' yet.`
+2. The plan-mode rejection happens before the Pi session prompt is invoked. The bridge test now asserts that unsupported send paths leave `fakeSession.session.prompt` uncalled and the thread snapshot empty.
+3. A real `/help` prompt through `apps/server/scripts/pi-provider-exerciser.ts` completed in 6128ms against this repository.
+4. The real `/help` run produced exactly one visible turn in the thread snapshot, with one `turn.started`, one `item.started`, 228 `content.delta` events, one `item.completed`, one `turn.completed` with `state: completed` and `stopReason: stop`, and one final turn-scoped ready-state transition.
+5. The local bridge now has focused test coverage that slash-command-shaped input is passed through as one normal Pi prompt lifecycle. This is the right Phase 1 behavior because product slash-command discovery and composer invocation are later roadmap work.
+6. `bun fmt`, `bun lint`, `bun typecheck`, `bun run build`, and `bun run test` passed for the Phase 1 closure point.
+
+Decision:
+
+1. Plan mode stays unsupported for Phase 1 and does not block Phase 2 shared-contract work.
+2. Slash-command-shaped prompts are safe to leave as pass-through prompt text at this layer. Product command discovery and UI invocation remain Phase 4 work.
+3. Phase 1 can be closed. The next slice is Phase 2 shared provider contracts and provider status.

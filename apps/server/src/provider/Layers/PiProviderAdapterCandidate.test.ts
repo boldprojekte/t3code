@@ -380,9 +380,61 @@ describe("PiProviderAdapterCandidateLive", () => {
               "Pi rollbackThread is not supported because the bridge does not own Pi history mutation yet.",
           }),
         );
+        assert.equal(fakeSession.session.prompt.mock.calls.length, 0);
+        assert.deepEqual(yield* adapter.readThread(threadId), {
+          threadId,
+          turns: [],
+        });
 
         yield* adapter.stopAll();
       }),
+    );
+
+    it.effect("passes slash-command-shaped prompts through one Pi prompt lifecycle", () =>
+      Effect.scoped(
+        Effect.gen(function* () {
+          const adapter = yield* PiProviderAdapterCandidate;
+          const fakeSession = createFakeSession();
+          const threadId = ThreadId.make("thread-pi-bridge-slash-command");
+
+          yield* adapter.startSession({
+            provider: "pi",
+            threadId,
+            cwd: process.cwd(),
+            runtimeMode: "full-access",
+            sdkLoader: createSdkLoader(fakeSession),
+          });
+
+          const turn = yield* adapter.sendTurn({
+            threadId,
+            input: "/help",
+          });
+
+          assert.equal(fakeSession.session.prompt.mock.calls[0]?.[0], "/help");
+
+          const threadSnapshot = yield* adapter.readThread(threadId);
+          assert.equal(threadSnapshot.turns.length, 1);
+          assert.equal(threadSnapshot.turns[0]?.id, turn.turnId);
+          assert.deepEqual(
+            threadSnapshot.turns[0]?.items.map((event) => event.type),
+            [
+              "turn.started",
+              "item.started",
+              "content.delta",
+              "item.completed",
+              "turn.completed",
+              "session.state.changed",
+            ],
+          );
+
+          const listedAfterTurn = yield* adapter.listSessions();
+          assert.equal(listedAfterTurn.length, 1);
+          assert.equal(listedAfterTurn[0]?.status, "ready");
+          assert.equal(listedAfterTurn[0]?.activeTurnId, undefined);
+
+          yield* adapter.stopAll();
+        }),
+      ),
     );
 
     it.effect("keeps one thread turn snapshot across internal Pi tool-use turns", () =>

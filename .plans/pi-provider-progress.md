@@ -24,7 +24,7 @@ Do not use this file as the durable product spec. The product roadmap and scope 
 - When a slice closes, also update the linked subplan status. If the next slice is different work, create or activate a new subplan here instead of silently continuing under an old one.
 
 ## Current summary
-Overall status: server-side Pi groundwork exists, the local real-thread exerciser and turn-lifecycle contract slices are done, and Phase 1 is now down to one last unsupported-path recheck before shared-contract integration.
+Overall status: Phase 1 server-only Pi hardening is done. The next work is Phase 2 shared provider contracts and provider status.
 
 Current position:
 1. thin SDK host exists
@@ -34,12 +34,13 @@ Current position:
 5. a real-thread exerciser exists at `apps/server/scripts/pi-provider-exerciser.ts`
 6. real Pi runs proved start, command discovery, abort, stop, stopAll, and session-file resume
 7. the local bridge now treats one visible T3 turn as one full Pi prompt lifecycle, even when Pi crosses multiple internal `toolUse` turn boundaries
-8. shared-contract integration has not started yet because we still need one last unsupported-path recheck against that lifecycle contract
+8. unsupported paths were re-checked against that lifecycle contract: plan mode remains an explicit hard failure and slash-command-shaped prompts are safe pass-through prompt text at this layer
+9. shared-contract integration has not started yet; it is now the next slice
 
 ## Status by roadmap phase
 
 ### Phase 1: Local real-thread exerciser and server-only hardening
-Status: active
+Status: done
 
 Done:
 - [x] Thin Pi SDK host exists in `apps/server/src/provider/piSdkSpike.ts`
@@ -52,15 +53,14 @@ Done:
 - [x] Headless bridge no longer depends on `bindExtensions()` for command inventory or event streaming
 - [x] Turn-lifecycle contract chosen and tested: one visible T3 turn spans the full Pi prompt lifecycle, not each internal Pi `toolUse` turn boundary
 - [x] Internal Pi `turn_end` with `stopReason: toolUse` no longer emits visible `turn.completed` or ready-state transitions in the local bridge
+- [x] Plan mode re-checked: it remains an explicit `sendTurn` validation failure before any Pi prompt starts
+- [x] Slash-command-shaped input re-checked: a real `/help` run completed as one visible prompt lifecycle, and the local bridge treats slash-shaped input as normal Pi prompt text
 
-Next:
-- [ ] Run the focused unsupported-path recheck slice in [`pi-provider-phase-1-unsupported-path-recheck.md`](./pi-provider-phase-1-unsupported-path-recheck.md)
-- [ ] Re-check plan mode against the chosen lifecycle contract
-- [ ] Re-check future slash-command execution behavior against the chosen lifecycle contract
-- [ ] Decide whether anything from that recheck changes the Phase 2 shared-contract entry criteria
+Closed decision:
+- [x] Phase 1 is complete and does not add new blockers to Phase 2
 
 ### Phase 2: Shared provider contracts and provider status
-Status: not started
+Status: next
 
 Planned:
 - [ ] Add `pi` to shared provider contracts
@@ -107,7 +107,8 @@ Planned:
 ## Focused subplans
 - [done] [Pi Phase 1 Local Real-Thread Exerciser](./pi-provider-phase-1-local-real-thread-exerciser.md)
 - [done] [Pi Phase 1 Turn Lifecycle Contract](./pi-provider-phase-1-turn-lifecycle-contract.md)
-- [planned] [Pi Phase 1 Unsupported Path Recheck](./pi-provider-phase-1-unsupported-path-recheck.md)
+- [done] [Pi Phase 1 Unsupported Path Recheck](./pi-provider-phase-1-unsupported-path-recheck.md)
+- [planned] [Pi Phase 2 Shared Contracts and Provider Status](./pi-provider-phase-2-shared-contracts-and-status.md)
 
 When a concrete execution slice starts, add it here with status:
 - planned
@@ -130,12 +131,12 @@ These are current intentional limitations, not accidents:
 7. No Pi-specific TUI UI rendering.
 
 ## Last meaningful completed slice
-Chose and hardened the local turn-lifecycle contract for Pi prompts that cross internal `toolUse` boundaries:
-- `apps/server/src/provider/piAdapterCandidate.ts`
-- `apps/server/src/provider/piAdapterCandidate.test.ts`
+Closed the final Phase 1 unsupported-path recheck:
 - `apps/server/src/provider/Layers/PiProviderAdapterCandidate.test.ts`
+- `.plans/pi-provider-phase-1-unsupported-path-recheck.md`
+- `.plans/pi-provider-phase-2-shared-contracts-and-status.md`
 
 Why it matters:
-1. A fresh real trace on 2026-04-23 showed one prompt continuing across at least ten internal Pi turns with repeated `turn.completed (toolUse)` boundaries and no final completion before the exerciser timeout.
-2. That proved the old projection was wrong for shared-contract work because it created multiple visible completions for what is externally still one prompt lifecycle.
-3. The local bridge now keeps one visible turn open across internal Pi `toolUse` boundaries and only emits visible `turn.completed` when the full Pi prompt lifecycle actually finishes.
+1. Plan mode remains an honest explicit rejection and is verified not to start a Pi prompt or create thread-turn state.
+2. A real `/help` run on 2026-04-23 completed in 6128ms as one visible turn with one final `turn.completed` and one final ready transition.
+3. Phase 1 is now closed with `bun fmt`, `bun lint`, `bun typecheck`, `bun run build`, and `bun run test` passing, so the next work can move into shared provider contracts and provider status without carrying unresolved local lifecycle questions.
