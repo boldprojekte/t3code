@@ -18,8 +18,13 @@ Do not use this file as the durable product spec. The product roadmap and scope 
 - Progress: current execution state and the default new-chat entrypoint
 - Subplans: focused implementation slices that can change more freely
 
+## Execution discipline
+- Keep this file stand der Wahrheit. Record only observed status, completed validation, and the actually active next slice.
+- When a focused slice or roadmap phase reaches a stable stop point, update this progress file before starting the next slice.
+- When a slice closes, also update the linked subplan status. If the next slice is different work, create or activate a new subplan here instead of silently continuing under an old one.
+
 ## Current summary
-Overall status: server-side Pi groundwork exists, the local real-thread exerciser is now in place, and shared-contract integration should wait until we account for the real Pi turn lifecycle.
+Overall status: server-side Pi groundwork exists, the local real-thread exerciser slice is done, and shared-contract integration should wait until we account for the real Pi turn lifecycle.
 
 Current position:
 1. thin SDK host exists
@@ -28,7 +33,8 @@ Current position:
 4. provider-shaped local bridge exists outside shared contracts
 5. a real-thread exerciser exists at `apps/server/scripts/pi-provider-exerciser.ts`
 6. real Pi runs proved start, command discovery, abort, stop, stopAll, and session-file resume
-7. shared-contract integration has not started yet because real Pi prompt lifecycles exposed one important mismatch
+7. the active next slice is the Phase 1 turn-lifecycle contract, because real Pi prompt lifecycles exposed one important mismatch
+8. shared-contract integration has not started yet because that lifecycle mismatch is still unresolved
 
 ## Status by roadmap phase
 
@@ -46,6 +52,7 @@ Done:
 - [x] Headless bridge no longer depends on `bindExtensions()` for command inventory or event streaming
 
 Next:
+- [ ] Run the focused turn-lifecycle slice in [`pi-provider-phase-1-turn-lifecycle-contract.md`](./pi-provider-phase-1-turn-lifecycle-contract.md)
 - [ ] Decide how the bridge should model Pi prompts that continue across multiple Pi `turn_start` and `turn_end` cycles after the first tool-use boundary
 - [ ] Decide whether `sendTurn()` should return on first mapped turn completion or continue waiting for the entire Pi prompt lifecycle
 - [ ] Re-check unsupported paths after that lifecycle decision, especially plan mode and future slash-command execution
@@ -97,6 +104,7 @@ Planned:
 
 ## Focused subplans
 - [done] [Pi Phase 1 Local Real-Thread Exerciser](./pi-provider-phase-1-local-real-thread-exerciser.md)
+- [active] [Pi Phase 1 Turn Lifecycle Contract](./pi-provider-phase-1-turn-lifecycle-contract.md)
 
 When a concrete execution slice starts, add it here with status:
 - planned
