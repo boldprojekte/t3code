@@ -1,6 +1,6 @@
 # Subplan: Pi Phase 3 Real ProviderService Smoke Validation
 
-Status: planned
+Status: done
 
 ## Role of this document
 This is the final Phase 3 confidence slice after adapter routing, runtime ingestion/projection, and session binding/resume tests.
@@ -83,6 +83,31 @@ bun run test
 If a real smoke script is added, run it against this repository and record the exact command and observed result in this document.
 
 Do not use `bun test`; this repo requires `bun run test`.
+
+## Result
+Done in this slice:
+1. Added `apps/server/scripts/pi-provider-service-smoke.ts`, a real local smoke script that runs through `ProviderService`, `ProviderAdapterRegistry`, `PiAdapterLive`, `ProviderSessionDirectory`, and the normal provider session runtime repository.
+2. Added `bun run --cwd apps/server pi:provider:service-smoke` as the package script entrypoint.
+3. Verified a real local Pi session through `ProviderService.startSession`, `ProviderService.sendTurn`, `ProviderService.streamEvents`, `ProviderService.stopSession`, and recovery via a second `ProviderService.sendTurn` after stop.
+4. Verified persisted provider runtime binding contains provider `pi`, runtime mode `full-access`, cwd `/Users/j.franke/Projects/t3code`, and `resumeCursor.sessionFile`.
+5. Verified real ProviderService event fanout with two visible T3 turns: 2 `turn.started`, 2 `turn.completed`, and 0 `runtime.error` events.
+6. Kept runtime ingestion service out of the smoke script because Phase 3 already has deterministic ingestion/projection coverage. This script is intentionally focused on the real ProviderService and Pi adapter seam.
+
+Observed real command:
+
+```sh
+bun fmt && bun run --cwd apps/server typecheck && bun apps/server/scripts/pi-provider-service-smoke.ts --cwd . --events-file /tmp/t3-pi-provider-service-smoke-summarized.jsonl --event-settle-ms 1500
+```
+
+Observed real result:
+1. The command passed against local Pi.
+2. `ProviderService.streamEvents` observed 115 events total.
+3. Event counts included 2 `session.started`, 2 `thread.started`, 7 `session.state.changed`, 2 `turn.started`, 2 `item.started`, 95 `content.delta`, 2 `item.completed`, 2 `turn.completed`, 1 `session.exited` before final cleanup, and 0 `runtime.error`.
+4. Persisted binding stayed providerName `pi`, runtimeMode `full-access`, cwd `/Users/j.franke/Projects/t3code`, and resumeCursor.sessionFile `/Users/j.franke/.pi/agent/sessions/--Users-j.franke-Projects-t3code--/2026-04-23T23-34-07-884Z_019dbcb1-950c-7724-b2ed-8575033b09a1.jsonl`.
+5. Stop then `ProviderService.sendTurn` resumed successfully through the persisted session file.
+
+Phase 3 is now done. Next slice:
+- [Pi Phase 4 Composer Commands and Thread UX](./pi-provider-phase-4-composer-command-thread-ux.md)
 
 ## Stop criteria
 Do not mark this slice done until all of the following are true:

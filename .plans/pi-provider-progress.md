@@ -24,7 +24,7 @@ Do not use this file as the durable product spec. The product roadmap and scope 
 - When a slice closes, also update the linked subplan status. If the next slice is different work, create or activate a new subplan here instead of silently continuing under an old one.
 
 ## Current summary
-Overall status: Phase 1 server-only Pi hardening, Phase 2 shared provider contracts/status, Phase 3 adapter/registry seam, runtime ingestion/projection validation, and session binding/resume tests are done. The next work is a real ProviderService smoke validation against local Pi.
+Overall status: Phase 1 server-only Pi hardening, Phase 2 shared provider contracts/status, and Phase 3 ProviderService/orchestration integration are done. The next work is Phase 4 composer commands and thread UX.
 
 Current position:
 1. thin SDK host exists
@@ -36,7 +36,7 @@ Current position:
 7. the local bridge now treats one visible T3 turn as one full Pi prompt lifecycle, even when Pi crosses multiple internal `toolUse` turn boundaries
 8. unsupported paths were re-checked against that lifecycle contract: plan mode remains an explicit hard failure and slash-command-shaped prompts are safe pass-through prompt text at this layer
 9. shared-contract and provider-status integration is implemented: `pi` is accepted in contracts, appears in provider status, and is tolerated by server and web provider metadata; server-side ProviderService routing now exists behind explicit settings enablement
-10. Pi is now resolvable through the normal provider adapter registry, routable through ProviderService in tests, validated through runtime ingestion/projection tests, and covered for session binding/resume with fake adapters; real ProviderService smoke validation is next
+10. Pi is now resolvable through the normal provider adapter registry, routable through ProviderService, validated through runtime ingestion/projection tests, covered for session binding/resume with fake adapters, and smoke-tested against real local Pi through ProviderService and PiAdapterLive
 
 ## Status by roadmap phase
 
@@ -72,7 +72,7 @@ Done:
 - [x] Kept server text generation on currently supported providers even if Pi is manually enabled in settings
 
 ### Phase 3: ProviderService and orchestration integration
-Status: active
+Status: done
 
 Done:
 - [x] Built the real shared-contract Pi provider adapter
@@ -80,12 +80,13 @@ Done:
 - [x] Proved ProviderService start/send/interrupt/stop routing for enabled Pi in tests
 - [x] Proved Pi runtime events flow through ProviderService stream/logging and ProviderRuntimeIngestion into orchestration projections
 - [x] Proved Pi session-file resume cursor persistence, stale-session recovery, and restart-style recovery with fake adapters
+- [x] Proved a real local Pi run through ProviderService and PiAdapterLive, including stop-and-resume through the persisted session file
 
-Next focused slice:
-- [ ] Execute [Pi Phase 3 Real ProviderService Smoke Validation](./pi-provider-phase-3-real-provider-service-smoke.md)
+Closed decision:
+- [x] Phase 3 is complete and does not add new blockers to Phase 4
 
 ### Phase 4: Composer commands and thread UX
-Status: not started
+Status: planned
 
 Planned:
 - [ ] Surface Pi command inventory in the composer
@@ -116,11 +117,12 @@ Planned:
 - [done] [Pi Phase 1 Turn Lifecycle Contract](./pi-provider-phase-1-turn-lifecycle-contract.md)
 - [done] [Pi Phase 1 Unsupported Path Recheck](./pi-provider-phase-1-unsupported-path-recheck.md)
 - [done] [Pi Phase 2 Shared Contracts and Provider Status](./pi-provider-phase-2-shared-contracts-and-status.md)
-- [active] [Pi Phase 3 ProviderService and Orchestration Integration](./pi-provider-phase-3-provider-service-orchestration.md)
+- [done] [Pi Phase 3 ProviderService and Orchestration Integration](./pi-provider-phase-3-provider-service-orchestration.md)
 - [done] [Pi Phase 3 Adapter and Registry Seam](./pi-provider-phase-3-adapter-registry-seam.md)
 - [done] [Pi Phase 3 Runtime Ingestion and Projection Validation](./pi-provider-phase-3-runtime-ingestion-projection.md)
 - [done] [Pi Phase 3 Session Binding and Resume](./pi-provider-phase-3-session-binding-resume.md)
-- [planned] [Pi Phase 3 Real ProviderService Smoke Validation](./pi-provider-phase-3-real-provider-service-smoke.md)
+- [done] [Pi Phase 3 Real ProviderService Smoke Validation](./pi-provider-phase-3-real-provider-service-smoke.md)
+- [planned] [Pi Phase 4 Composer Commands and Thread UX](./pi-provider-phase-4-composer-command-thread-ux.md)
 
 When a concrete execution slice starts, add it here with status:
 - planned
@@ -134,8 +136,8 @@ Suggested format:
 ## Known guardrails right now
 These are current intentional limitations, not accidents:
 
-1. ProviderService can route Pi in tests when Pi is explicitly enabled, but the UI still does not advertise Pi as generally available.
-2. Pi runtime ingestion/projection and session binding/resume are covered with fake adapters, not yet with a real Pi end-to-end ProviderService run.
+1. ProviderService can route Pi when Pi is explicitly enabled, but the UI still does not advertise Pi as generally available.
+2. Pi runtime ingestion/projection and session binding/resume are covered by tests, and the integrated ProviderService path has one real local Pi smoke pass.
 3. No attachment support in the local Pi provider-shaped bridge.
 4. No model selection support in the local Pi provider-shaped bridge.
 5. No approval callback or user-input callback bridge yet.
@@ -143,13 +145,23 @@ These are current intentional limitations, not accidents:
 7. No Pi-specific TUI UI rendering.
 
 ## Last meaningful completed slice
+Completed Phase 3 real ProviderService smoke validation:
+- `apps/server/scripts/pi-provider-service-smoke.ts`
+- `apps/server/package.json`
+
+Why it matters:
+1. The real local Pi install now runs through `ProviderService`, `ProviderAdapterRegistry`, `PiAdapterLive`, `ProviderSessionDirectory`, and normal provider runtime persistence.
+2. A real smoke pass observed 2 visible T3 turn lifecycles, 0 runtime errors, persisted provider `pi`, and `resumeCursor.sessionFile`.
+3. Stop then `ProviderService.sendTurn` resumed successfully through the persisted Pi session file.
+
+Previous meaningful completed slice:
 Completed Phase 3 session binding and resume tests:
 - `apps/server/src/provider/Layers/ProviderService.test.ts`
 
 Why it matters:
 1. Pi `resumeCursor.sessionFile` is now covered after start and send.
 2. ProviderService stale-session recovery and restart-style recovery are covered with Pi-shaped fake adapters.
-3. Before moving to Phase 4 UI work, the remaining confidence gap is a real local Pi smoke through the integrated ProviderService seam.
+3. This prepared the real local Pi smoke through the integrated ProviderService seam.
 
 Previous meaningful completed slice:
 Completed Phase 3 runtime ingestion and projection validation:

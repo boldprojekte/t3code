@@ -1,6 +1,6 @@
 # Subplan: Pi Phase 3 ProviderService and Orchestration Integration
 
-Status: active
+Status: done
 
 ## Role of this document
 This is the next focused execution slice after Phase 2 shared contracts and provider status.
@@ -37,7 +37,7 @@ Phase 2 made `pi` contract-valid and visible to provider status paths, but delib
 - [done] [Pi Phase 3 Adapter and Registry Seam](./pi-provider-phase-3-adapter-registry-seam.md)
 - [done] [Pi Phase 3 Runtime Ingestion and Projection Validation](./pi-provider-phase-3-runtime-ingestion-projection.md)
 - [done] [Pi Phase 3 Session Binding and Resume](./pi-provider-phase-3-session-binding-resume.md)
-- [planned] [Pi Phase 3 Real ProviderService Smoke Validation](./pi-provider-phase-3-real-provider-service-smoke.md)
+- [done] [Pi Phase 3 Real ProviderService Smoke Validation](./pi-provider-phase-3-real-provider-service-smoke.md)
 
 ## Proposed work steps
 ### 1. Adapter seam
@@ -59,6 +59,20 @@ Phase 2 made `pi` contract-valid and visible to provider status paths, but delib
 1. Keep plan mode as an explicit validation failure.
 2. Keep attachments, model switching, approval callbacks, user-input callbacks, and rollback as explicit unsupported paths.
 3. Make sure the UI or service layer does not advertise those capabilities for Pi.
+
+## Result
+Phase 3 is done.
+
+Completed across focused slices:
+1. Added the real shared-contract Pi provider adapter backed by the local Pi bridge.
+2. Registered Pi in provider adapter registry and the server provider layer.
+3. Proved ProviderService start/send/interrupt/stop routing for enabled Pi in tests.
+4. Proved Pi canonical runtime events fan out through ProviderService and project through provider runtime ingestion.
+5. Proved Pi session-file resume cursor persistence, stale-session recovery, and restart-style recovery with fake adapters.
+6. Proved a real local Pi run through ProviderService and PiAdapterLive, including stop-and-resume through the persisted session file.
+
+Next phase:
+- [Pi Phase 4 Composer Commands and Thread UX](./pi-provider-phase-4-composer-command-thread-ux.md)
 
 ## Stop criteria
 Do not call this slice done until all of the following are true:

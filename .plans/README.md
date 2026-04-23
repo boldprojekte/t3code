@@ -12,6 +12,7 @@
 - [Subplan: Pi Phase 3 Runtime Ingestion and Projection Validation](./pi-provider-phase-3-runtime-ingestion-projection.md)
 - [Subplan: Pi Phase 3 Session Binding and Resume](./pi-provider-phase-3-session-binding-resume.md)
 - [Subplan: Pi Phase 3 Real ProviderService Smoke Validation](./pi-provider-phase-3-real-provider-service-smoke.md)
+- [Subplan: Pi Phase 4 Composer Commands and Thread UX](./pi-provider-phase-4-composer-command-thread-ux.md)
 
 ## Other plans
 1. [01-shared-model-normalization.md](./01-shared-model-normalization.md)
