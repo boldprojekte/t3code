@@ -24,7 +24,7 @@ Do not use this file as the durable product spec. The product roadmap and scope 
 - When a slice closes, also update the linked subplan status. If the next slice is different work, create or activate a new subplan here instead of silently continuing under an old one.
 
 ## Current summary
-Overall status: Phase 1 server-only Pi hardening and Phase 2 shared provider contracts/status are done. The next work is the first Phase 3 slice: Pi adapter and registry seam.
+Overall status: Phase 1 server-only Pi hardening, Phase 2 shared provider contracts/status, and the first Phase 3 adapter/registry seam are done. The next work is Phase 3 runtime ingestion and projection validation.
 
 Current position:
 1. thin SDK host exists
@@ -35,8 +35,8 @@ Current position:
 6. real Pi runs proved start, command discovery, abort, stop, stopAll, and session-file resume
 7. the local bridge now treats one visible T3 turn as one full Pi prompt lifecycle, even when Pi crosses multiple internal `toolUse` turn boundaries
 8. unsupported paths were re-checked against that lifecycle contract: plan mode remains an explicit hard failure and slash-command-shaped prompts are safe pass-through prompt text at this layer
-9. shared-contract and provider-status integration is implemented: `pi` is accepted in contracts, appears in provider status, and is tolerated by server and web provider metadata without enabling runtime execution yet
-10. ProviderService and orchestration integration has not started yet; the first concrete Phase 3 slice is the Pi adapter and registry seam
+9. shared-contract and provider-status integration is implemented: `pi` is accepted in contracts, appears in provider status, and is tolerated by server and web provider metadata; server-side ProviderService routing now exists behind explicit settings enablement
+10. Pi is now resolvable through the normal provider adapter registry and routable through ProviderService in tests; runtime ingestion/projection validation is next
 
 ## Status by roadmap phase
 
@@ -72,14 +72,18 @@ Done:
 - [x] Kept server text generation on currently supported providers even if Pi is manually enabled in settings
 
 ### Phase 3: ProviderService and orchestration integration
-Status: next
+Status: active
+
+Done:
+- [x] Built the real shared-contract Pi provider adapter
+- [x] Registered Pi in provider adapter registry and server provider layer
+- [x] Proved ProviderService start/send/interrupt/stop routing for enabled Pi in tests
 
 Next focused slice:
-- [ ] Execute [Pi Phase 3 Adapter and Registry Seam](./pi-provider-phase-3-adapter-registry-seam.md)
+- [ ] Execute [Pi Phase 3 Runtime Ingestion and Projection Validation](./pi-provider-phase-3-runtime-ingestion-projection.md)
 
 Planned after that:
-- [ ] Feed canonical Pi runtime events into provider runtime ingestion
-- [ ] Persist Pi session bindings in normal provider runtime state
+- [ ] Persist Pi session bindings and resume behavior in normal provider runtime state
 
 ### Phase 4: Composer commands and thread UX
 Status: not started
@@ -114,7 +118,8 @@ Planned:
 - [done] [Pi Phase 1 Unsupported Path Recheck](./pi-provider-phase-1-unsupported-path-recheck.md)
 - [done] [Pi Phase 2 Shared Contracts and Provider Status](./pi-provider-phase-2-shared-contracts-and-status.md)
 - [planned] [Pi Phase 3 ProviderService and Orchestration Integration](./pi-provider-phase-3-provider-service-orchestration.md)
-- [planned] [Pi Phase 3 Adapter and Registry Seam](./pi-provider-phase-3-adapter-registry-seam.md)
+- [done] [Pi Phase 3 Adapter and Registry Seam](./pi-provider-phase-3-adapter-registry-seam.md)
+- [planned] [Pi Phase 3 Runtime Ingestion and Projection Validation](./pi-provider-phase-3-runtime-ingestion-projection.md)
 
 When a concrete execution slice starts, add it here with status:
 - planned
@@ -128,8 +133,8 @@ Suggested format:
 ## Known guardrails right now
 These are current intentional limitations, not accidents:
 
-1. No ProviderService runtime execution for Pi yet.
-2. No orchestration ingestion for Pi runtime events yet.
+1. ProviderService can route Pi in tests when Pi is explicitly enabled, but the UI still does not advertise Pi as generally available.
+2. No orchestration ingestion/projection validation for Pi runtime events yet.
 3. No attachment support in the local Pi provider-shaped bridge.
 4. No model selection support in the local Pi provider-shaped bridge.
 5. No approval callback or user-input callback bridge yet.
@@ -137,6 +142,20 @@ These are current intentional limitations, not accidents:
 7. No Pi-specific TUI UI rendering.
 
 ## Last meaningful completed slice
+Completed Phase 3 adapter and registry seam:
+- `apps/server/src/provider/Services/PiAdapter.ts`
+- `apps/server/src/provider/Layers/PiAdapter.ts`
+- `apps/server/src/provider/Layers/ProviderAdapterRegistry.ts`
+- `apps/server/src/provider/Layers/ProviderService.test.ts`
+- `apps/server/src/server.ts`
+- `packages/contracts/src/providerRuntime.ts`
+
+Why it matters:
+1. Pi now has a real shared provider adapter surface backed by the already-tested local Pi bridge.
+2. Pi can be resolved through `ProviderAdapterRegistry` and routed through `ProviderService` for start/send/interrupt/stop in tests when explicitly enabled.
+3. Runtime ingestion and projection validation remains the next focused slice before claiming broader orchestration integration.
+
+Previous meaningful completed slice:
 Completed Phase 2 shared provider contracts and provider status:
 - `packages/contracts/src/orchestration.ts`
 - `packages/contracts/src/model.ts`
@@ -152,4 +171,4 @@ Completed Phase 2 shared provider contracts and provider status:
 Why it matters:
 1. `pi` is now a shared-contract provider and can appear in server provider status without crashing server or web provider maps.
 2. The Pi status path is conservative: it validates SDK availability without starting a Pi work session, reports auth as `unknown`, and leaves model, slash-command, and skill inventory empty until runtime integration owns real sessions.
-3. Phase 2 is closed with `bun fmt`, `bun lint`, `bun typecheck`, `bun run build`, and `bun run test` passing. Runtime execution remains intentionally disabled until Phase 3 wires Pi through `ProviderService` and orchestration ingestion.
+3. Phase 2 closed with `bun fmt`, `bun lint`, `bun typecheck`, `bun run build`, and `bun run test` passing. Runtime execution was intentionally deferred until Phase 3.

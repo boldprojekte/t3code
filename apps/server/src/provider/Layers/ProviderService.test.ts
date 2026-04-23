@@ -291,19 +291,25 @@ it.effect("ProviderServiceLive rejects new sessions for disabled providers", () 
   Effect.gen(function* () {
     const codex = makeFakeCodexAdapter();
     const claude = makeFakeCodexAdapter("claudeAgent");
+    const pi = makeFakeCodexAdapter("pi");
     const registry: typeof ProviderAdapterRegistry.Service = {
       getByProvider: (provider) =>
         provider === "codex"
           ? Effect.succeed(codex.adapter)
           : provider === "claudeAgent"
             ? Effect.succeed(claude.adapter)
-            : Effect.fail(new ProviderUnsupportedError({ provider })),
-      listProviders: () => Effect.succeed(["codex", "claudeAgent"]),
+            : provider === "pi"
+              ? Effect.succeed(pi.adapter)
+              : Effect.fail(new ProviderUnsupportedError({ provider })),
+      listProviders: () => Effect.succeed(["codex", "claudeAgent", "pi"]),
     };
     const providerAdapterLayer = Layer.succeed(ProviderAdapterRegistry, registry);
     const serverSettingsLayer = ServerSettingsService.layerTest({
       providers: {
         claudeAgent: {
+          enabled: false,
+        },
+        pi: {
           enabled: false,
         },
       },
@@ -319,7 +325,7 @@ it.effect("ProviderServiceLive rejects new sessions for disabled providers", () 
       Layer.provide(AnalyticsService.layerTest),
     );
 
-    const failure = yield* Effect.flip(
+    const claudeFailure = yield* Effect.flip(
       Effect.gen(function* () {
         const provider = yield* ProviderService;
         return yield* provider.startSession(asThreadId("thread-disabled"), {
@@ -329,11 +335,93 @@ it.effect("ProviderServiceLive rejects new sessions for disabled providers", () 
         });
       }).pipe(Effect.provide(providerLayer)),
     );
+    const piFailure = yield* Effect.flip(
+      Effect.gen(function* () {
+        const provider = yield* ProviderService;
+        return yield* provider.startSession(asThreadId("thread-pi-disabled"), {
+          provider: "pi",
+          threadId: asThreadId("thread-pi-disabled"),
+          runtimeMode: "full-access",
+          cwd: process.cwd(),
+        });
+      }).pipe(Effect.provide(providerLayer)),
+    );
 
-    assert.instanceOf(failure, ProviderValidationError);
-    assert.include(failure.issue, "Provider 'claudeAgent' is disabled in T3 Code settings.");
+    assert.instanceOf(claudeFailure, ProviderValidationError);
+    assert.include(claudeFailure.issue, "Provider 'claudeAgent' is disabled in T3 Code settings.");
+    assert.instanceOf(piFailure, ProviderValidationError);
+    assert.include(piFailure.issue, "Provider 'pi' is disabled in T3 Code settings.");
     assert.equal(claude.startSession.mock.calls.length, 0);
+    assert.equal(pi.startSession.mock.calls.length, 0);
   }).pipe(Effect.provide(NodeServices.layer)),
+);
+
+it.effect(
+  "ProviderServiceLive routes enabled Pi sessions through the shared provider surface",
+  () =>
+    Effect.gen(function* () {
+      const pi = makeFakeCodexAdapter("pi");
+      const registry: typeof ProviderAdapterRegistry.Service = {
+        getByProvider: (provider) =>
+          provider === "pi"
+            ? Effect.succeed(pi.adapter)
+            : Effect.fail(new ProviderUnsupportedError({ provider })),
+        listProviders: () => Effect.succeed(["pi"]),
+      };
+      const providerAdapterLayer = Layer.succeed(ProviderAdapterRegistry, registry);
+      const serverSettingsLayer = ServerSettingsService.layerTest({
+        providers: {
+          pi: {
+            enabled: true,
+          },
+        },
+      });
+      const runtimeRepositoryLayer = ProviderSessionRuntimeRepositoryLive.pipe(
+        Layer.provide(SqlitePersistenceMemory),
+      );
+      const directoryLayer = ProviderSessionDirectoryLive.pipe(
+        Layer.provide(runtimeRepositoryLayer),
+      );
+      const providerLayer = makeProviderServiceLive().pipe(
+        Layer.provide(providerAdapterLayer),
+        Layer.provide(directoryLayer),
+        Layer.provide(serverSettingsLayer),
+        Layer.provide(AnalyticsService.layerTest),
+      );
+      const testLayer = Layer.mergeAll(providerLayer, directoryLayer, runtimeRepositoryLayer);
+      const threadId = asThreadId("thread-pi-service-route");
+
+      yield* Effect.gen(function* () {
+        const provider = yield* ProviderService;
+        const directory = yield* ProviderSessionDirectory;
+
+        const session = yield* provider.startSession(threadId, {
+          provider: "pi",
+          threadId,
+          runtimeMode: "full-access",
+          cwd: process.cwd(),
+        });
+        const bindingAfterStart = Option.getOrUndefined(yield* directory.getBinding(threadId));
+        const turn = yield* provider.sendTurn({
+          threadId,
+          input: "Hello Pi through ProviderService",
+        });
+        yield* provider.interruptTurn({ threadId, turnId: turn.turnId });
+        yield* provider.stopSession({ threadId });
+        const bindingAfterStop = Option.getOrUndefined(yield* directory.getBinding(threadId));
+
+        assert.equal(session.provider, "pi");
+        assert.equal(bindingAfterStart?.provider, "pi");
+        assert.equal(bindingAfterStart?.status, "running");
+        assert.equal(turn.threadId, threadId);
+        assert.equal(pi.startSession.mock.calls.length, 1);
+        assert.equal(pi.sendTurn.mock.calls.length, 1);
+        assert.equal(pi.interruptTurn.mock.calls.length, 1);
+        assert.equal(pi.stopSession.mock.calls.length, 1);
+        assert.equal(bindingAfterStop?.provider, "pi");
+        assert.equal(bindingAfterStop?.status, "stopped");
+      }).pipe(Effect.provide(testLayer));
+    }).pipe(Effect.provide(NodeServices.layer)),
 );
 
 const routing = makeProviderServiceLayer();

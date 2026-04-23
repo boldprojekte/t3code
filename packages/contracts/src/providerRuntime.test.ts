@@ -6,6 +6,31 @@ import { ProviderRuntimeEvent } from "./providerRuntime.ts";
 const decodeRuntimeEvent = Schema.decodeUnknownSync(ProviderRuntimeEvent);
 
 describe("ProviderRuntimeEvent", () => {
+  it("decodes Pi raw runtime source metadata", () => {
+    const parsed = decodeRuntimeEvent({
+      type: "session.state.changed",
+      eventId: "event-pi-raw-1",
+      provider: "pi",
+      createdAt: "2026-02-28T00:00:00.000Z",
+      threadId: "thread-pi-1",
+      payload: {
+        state: "ready",
+      },
+      raw: {
+        source: "pi.sdk.session-event",
+        method: "agent_end",
+        payload: { type: "agent_end" },
+      },
+    });
+
+    expect(parsed.type).toBe("session.state.changed");
+    if (parsed.type !== "session.state.changed") {
+      throw new Error("expected session.state.changed");
+    }
+    expect(parsed.provider).toBe("pi");
+    expect(parsed.raw?.source).toBe("pi.sdk.session-event");
+  });
+
   it("decodes turn.plan.updated for plan rendering", () => {
     const parsed = decodeRuntimeEvent({
       type: "turn.plan.updated",

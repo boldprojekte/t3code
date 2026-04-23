@@ -1,6 +1,6 @@
 # Subplan: Pi Phase 3 ProviderService and Orchestration Integration
 
-Status: planned
+Status: active
 
 ## Role of this document
 This is the next focused execution slice after Phase 2 shared contracts and provider status.
@@ -34,7 +34,8 @@ Phase 2 made `pi` contract-valid and visible to provider status paths, but delib
 5. Web polish beyond whatever is required to prevent crashes when Pi is present.
 
 ## Focused execution slices
-- [planned] [Pi Phase 3 Adapter and Registry Seam](./pi-provider-phase-3-adapter-registry-seam.md)
+- [done] [Pi Phase 3 Adapter and Registry Seam](./pi-provider-phase-3-adapter-registry-seam.md)
+- [planned] [Pi Phase 3 Runtime Ingestion and Projection Validation](./pi-provider-phase-3-runtime-ingestion-projection.md)
 
 ## Proposed work steps
 ### 1. Adapter seam

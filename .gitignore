@@ -2,6 +2,7 @@ node_modules
 .bun
 .turbo
 .pi/
+.ralph/
 .DS_Store
 *.log
 *.tsbuildinfo

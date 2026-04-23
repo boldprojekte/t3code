@@ -1,6 +1,6 @@
 # Subplan: Pi Phase 3 Adapter and Registry Seam
 
-Status: planned
+Status: done
 
 ## Role of this document
 This is the first concrete execution slice inside Phase 3 ProviderService and orchestration integration.
@@ -142,6 +142,19 @@ bun run test
 ```
 
 Do not use `bun test`; this repo requires `bun run test`.
+
+## Result
+Done in this slice:
+1. Added a real Pi adapter service and layer that satisfy `ProviderAdapterShape<ProviderAdapterError>`.
+2. Reused the existing `PiProviderAdapterCandidate` as the lifecycle owner instead of duplicating Pi SDK/session logic.
+3. Added Pi raw runtime source support to shared provider-runtime contracts.
+4. Registered Pi in `ProviderAdapterRegistryLive` when `PiAdapter` is provided.
+5. Wired `PiAdapterLive` into the server provider layer so enabled Pi sessions can be routed through `ProviderService`.
+6. Added tests for Pi adapter delegation, resume-cursor validation, canonical event decoding, registry resolution, disabled settings gating, and ProviderService start/send/interrupt/stop routing.
+7. Kept unsupported operations delegated to the existing explicit Pi validation paths.
+
+Next slice:
+- [Pi Phase 3 Runtime Ingestion and Projection Validation](./pi-provider-phase-3-runtime-ingestion-projection.md)
 
 ## Stop criteria
 Do not mark this slice done until all of the following are true:
