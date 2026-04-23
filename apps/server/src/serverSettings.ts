@@ -105,7 +105,16 @@ export class ServerSettingsService extends Context.Service<
 
 const ServerSettingsJson = fromLenientJson(ServerSettings);
 
-const PROVIDER_ORDER: readonly ProviderKind[] = ["codex", "claudeAgent", "opencode", "cursor"];
+const TEXT_GENERATION_PROVIDER_ORDER: readonly Exclude<ProviderKind, "pi">[] = [
+  "codex",
+  "claudeAgent",
+  "opencode",
+  "cursor",
+];
+
+function isTextGenerationProvider(provider: ProviderKind): provider is Exclude<ProviderKind, "pi"> {
+  return provider !== "pi";
+}
 
 /**
  * Ensure the `textGenerationModelSelection` points to an enabled provider.
@@ -115,11 +124,14 @@ const PROVIDER_ORDER: readonly ProviderKind[] = ["codex", "claudeAgent", "openco
  */
 function resolveTextGenerationProvider(settings: ServerSettings): ServerSettings {
   const selection = settings.textGenerationModelSelection;
-  if (settings.providers[selection.provider].enabled) {
+  if (
+    isTextGenerationProvider(selection.provider) &&
+    settings.providers[selection.provider].enabled
+  ) {
     return settings;
   }
 
-  const fallback = PROVIDER_ORDER.find((p) => settings.providers[p].enabled);
+  const fallback = TEXT_GENERATION_PROVIDER_ORDER.find((p) => settings.providers[p].enabled);
   if (!fallback) {
     // No providers enabled — return as-is; callers will report the error.
     return settings;

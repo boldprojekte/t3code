@@ -24,7 +24,7 @@ Do not use this file as the durable product spec. The product roadmap and scope 
 - When a slice closes, also update the linked subplan status. If the next slice is different work, create or activate a new subplan here instead of silently continuing under an old one.
 
 ## Current summary
-Overall status: Phase 1 server-only Pi hardening is done. The next work is Phase 2 shared provider contracts and provider status.
+Overall status: Phase 1 server-only Pi hardening and Phase 2 shared provider contracts/status are done. The next work is Phase 3 ProviderService and orchestration integration.
 
 Current position:
 1. thin SDK host exists
@@ -35,7 +35,8 @@ Current position:
 6. real Pi runs proved start, command discovery, abort, stop, stopAll, and session-file resume
 7. the local bridge now treats one visible T3 turn as one full Pi prompt lifecycle, even when Pi crosses multiple internal `toolUse` turn boundaries
 8. unsupported paths were re-checked against that lifecycle contract: plan mode remains an explicit hard failure and slash-command-shaped prompts are safe pass-through prompt text at this layer
-9. shared-contract integration has not started yet; it is now the next slice
+9. shared-contract and provider-status integration is implemented: `pi` is accepted in contracts, appears in provider status, and is tolerated by server and web provider metadata without enabling runtime execution yet
+10. ProviderService and orchestration integration has not started yet; it is now the next slice
 
 ## Status by roadmap phase
 
@@ -60,16 +61,18 @@ Closed decision:
 - [x] Phase 1 is complete and does not add new blockers to Phase 2
 
 ### Phase 2: Shared provider contracts and provider status
-Status: next
+Status: done
 
-Planned:
-- [ ] Add `pi` to shared provider contracts
-- [ ] Add Pi provider metadata and ordering
-- [ ] Add Pi status and model inventory service
-- [ ] Make server and web tolerate Pi as a first-class provider
+Done:
+- [x] Added `pi` to shared provider contracts and model-selection schemas
+- [x] Added Pi provider metadata, display name, default model, provider ordering, and status cache ordering
+- [x] Added minimal Pi provider status that reports disabled, SDK load failure, or SDK-ready state without starting a work session
+- [x] Kept Pi model, slash-command, skill, and auth inventory honest for this slice: empty inventory and `unknown` auth until the runtime integration path owns real sessions
+- [x] Made server and web tolerate Pi as a first-class provider while keeping it unavailable for runtime execution in the picker
+- [x] Kept server text generation on currently supported providers even if Pi is manually enabled in settings
 
 ### Phase 3: ProviderService and orchestration integration
-Status: not started
+Status: next
 
 Planned:
 - [ ] Build the real shared-contract Pi provider adapter
@@ -108,7 +111,8 @@ Planned:
 - [done] [Pi Phase 1 Local Real-Thread Exerciser](./pi-provider-phase-1-local-real-thread-exerciser.md)
 - [done] [Pi Phase 1 Turn Lifecycle Contract](./pi-provider-phase-1-turn-lifecycle-contract.md)
 - [done] [Pi Phase 1 Unsupported Path Recheck](./pi-provider-phase-1-unsupported-path-recheck.md)
-- [planned] [Pi Phase 2 Shared Contracts and Provider Status](./pi-provider-phase-2-shared-contracts-and-status.md)
+- [done] [Pi Phase 2 Shared Contracts and Provider Status](./pi-provider-phase-2-shared-contracts-and-status.md)
+- [planned] [Pi Phase 3 ProviderService and Orchestration Integration](./pi-provider-phase-3-provider-service-orchestration.md)
 
 When a concrete execution slice starts, add it here with status:
 - planned
@@ -122,8 +126,8 @@ Suggested format:
 ## Known guardrails right now
 These are current intentional limitations, not accidents:
 
-1. No shared-contract `pi` provider yet.
-2. No provider registry or `ProviderService` integration yet.
+1. No ProviderService runtime execution for Pi yet.
+2. No orchestration ingestion for Pi runtime events yet.
 3. No attachment support in the local Pi provider-shaped bridge.
 4. No model selection support in the local Pi provider-shaped bridge.
 5. No approval callback or user-input callback bridge yet.
@@ -131,12 +135,19 @@ These are current intentional limitations, not accidents:
 7. No Pi-specific TUI UI rendering.
 
 ## Last meaningful completed slice
-Closed the final Phase 1 unsupported-path recheck:
-- `apps/server/src/provider/Layers/PiProviderAdapterCandidate.test.ts`
-- `.plans/pi-provider-phase-1-unsupported-path-recheck.md`
-- `.plans/pi-provider-phase-2-shared-contracts-and-status.md`
+Completed Phase 2 shared provider contracts and provider status:
+- `packages/contracts/src/orchestration.ts`
+- `packages/contracts/src/model.ts`
+- `packages/contracts/src/settings.ts`
+- `packages/shared/src/model.ts`
+- `packages/shared/src/serverSettings.ts`
+- `apps/server/src/provider/Layers/PiProvider.ts`
+- `apps/server/src/provider/Services/PiProvider.ts`
+- `apps/server/src/provider/Layers/ProviderRegistry.ts`
+- `apps/server/src/provider/providerStatusCache.ts`
+- web provider metadata and model-selection tolerance files
 
 Why it matters:
-1. Plan mode remains an honest explicit rejection and is verified not to start a Pi prompt or create thread-turn state.
-2. A real `/help` run on 2026-04-23 completed in 6128ms as one visible turn with one final `turn.completed` and one final ready transition.
-3. Phase 1 is now closed with `bun fmt`, `bun lint`, `bun typecheck`, `bun run build`, and `bun run test` passing, so the next work can move into shared provider contracts and provider status without carrying unresolved local lifecycle questions.
+1. `pi` is now a shared-contract provider and can appear in server provider status without crashing server or web provider maps.
+2. The Pi status path is conservative: it validates SDK availability without starting a Pi work session, reports auth as `unknown`, and leaves model, slash-command, and skill inventory empty until runtime integration owns real sessions.
+3. Phase 2 is closed with `bun fmt`, `bun lint`, `bun typecheck`, `bun run build`, and `bun run test` passing. Runtime execution remains intentionally disabled until Phase 3 wires Pi through `ProviderService` and orchestration ingestion.

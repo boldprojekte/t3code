@@ -1,6 +1,6 @@
 # Subplan: Pi Phase 2 Shared Contracts and Provider Status
 
-Status: planned
+Status: done
 
 ## Role of this document
 This is the next focused execution slice after Phase 1 local bridge hardening.
@@ -55,3 +55,22 @@ Do not call this slice done until all of the following are true:
 3. Unsupported Pi capabilities remain explicit instead of implied by metadata.
 4. The progress document is updated at the slice stop point.
 5. `bun fmt`, `bun lint`, `bun typecheck`, `bun run build`, and `bun run test` pass.
+
+## Results
+Implemented and verified on 2026-04-23:
+
+1. `pi` is now accepted by the shared provider contract surface through `ProviderKind`, `ModelSelection`, model defaults, display names, and server settings schemas.
+2. Pi has conservative model settings: default model slug `default`, empty model options, and no custom-model editing in the settings UI.
+3. Server provider status now includes a Pi provider source. It can report disabled, SDK load failure, or SDK-ready status without starting a Pi work session.
+4. Pi provider status reports auth as `unknown` and model, slash-command, and skill inventory as empty for this slice. Runtime inventory stays deferred until the ProviderService integration path owns real Pi sessions.
+5. Server provider cache ordering includes Pi after currently executable providers.
+6. Web provider metadata includes Pi as a known provider with a conservative `soon` picker entry, icon fallback, empty model list tolerance, and no runtime execution exposure.
+7. Server text-generation settings do not select Pi yet. If Pi is manually enabled and selected there, the server falls back to the first supported text-generation provider instead of routing unsupported Pi model selections into Git text generation.
+8. Existing Codex, Claude, Cursor, and OpenCode provider paths remain unchanged except for exhaustive provider maps tolerating Pi.
+9. Targeted contract, shared model/settings, provider registry/cache, and web composer tests passed before the final full gate.
+10. `bun fmt`, `bun lint`, `bun typecheck`, `bun run build`, and `bun run test` passed for the Phase 2 closure point.
+
+Decision:
+
+1. Phase 2 is complete.
+2. The next slice is Phase 3 ProviderService and Orchestration Integration.

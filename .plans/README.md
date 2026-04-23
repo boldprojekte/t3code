@@ -7,6 +7,7 @@
 - [Subplan: Pi Phase 1 Turn Lifecycle Contract](./pi-provider-phase-1-turn-lifecycle-contract.md)
 - [Subplan: Pi Phase 1 Unsupported Path Recheck](./pi-provider-phase-1-unsupported-path-recheck.md)
 - [Subplan: Pi Phase 2 Shared Contracts and Provider Status](./pi-provider-phase-2-shared-contracts-and-status.md)
+- [Subplan: Pi Phase 3 ProviderService and Orchestration Integration](./pi-provider-phase-3-provider-service-orchestration.md)
 
 ## Other plans
 1. [01-shared-model-normalization.md](./01-shared-model-normalization.md)

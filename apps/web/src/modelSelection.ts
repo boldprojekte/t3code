@@ -66,6 +66,13 @@ const PROVIDER_CUSTOM_MODEL_CONFIG: Record<ProviderKind, ProviderCustomModelConf
     placeholder: "openai/gpt-5",
     example: "anthropic/claude-sonnet-4-5-20250929",
   },
+  pi: {
+    provider: "pi",
+    title: "Pi",
+    description: "Pi model inventory is loaded through the runtime integration path.",
+    placeholder: "default",
+    example: "default",
+  },
 };
 
 export const MODEL_PROVIDER_SETTINGS = Object.values(PROVIDER_CUSTOM_MODEL_CONFIG);
@@ -99,6 +106,14 @@ export function normalizeCustomModelSlugs(
   return normalizedModels;
 }
 
+function getProviderCustomModels(
+  settings: UnifiedSettings,
+  provider: ProviderKind,
+): readonly string[] {
+  const providerSettings = settings.providers[provider];
+  return "customModels" in providerSettings ? providerSettings.customModels : [];
+}
+
 export function getAppModelOptions(
   settings: UnifiedSettings,
   providers: ReadonlyArray<ServerProvider>,
@@ -122,7 +137,7 @@ export function getAppModelOptions(
       .map((model) => model.slug),
   );
 
-  const customModels = settings.providers[provider].customModels;
+  const customModels = getProviderCustomModels(settings, provider);
   for (const slug of normalizeCustomModelSlugs(customModels, builtInModelSlugs, provider)) {
     if (seen.has(slug)) {
       continue;
@@ -199,6 +214,12 @@ export function getCustomModelOptionsByProvider(
       providers,
       "opencode",
       selectedProvider === "opencode" ? selectedModel : undefined,
+    ),
+    pi: getAppModelOptions(
+      settings,
+      providers,
+      "pi",
+      selectedProvider === "pi" ? selectedModel : undefined,
     ),
   };
 }

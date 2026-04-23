@@ -1,21 +1,20 @@
 /**
- * RoutingTextGeneration – Dispatches text generation requests to either the
- * Codex CLI or Claude CLI implementation based on the provider in each
- * request input.
+ * RoutingTextGeneration dispatches text generation requests to the concrete
+ * provider implementation based on the provider in each request input.
  *
- * When `modelSelection.provider` is `"claudeAgent"` the request is forwarded to
- * the Claude layer; for any other value (including the default `undefined`) it
- * falls through to the Codex layer.
+ * Pi does not support Git text generation yet, so Pi selections are normalized
+ * to the default Codex text-generation model before routing.
  *
  * @module RoutingTextGeneration
  */
 import { Effect, Layer, Context } from "effect";
-
 import {
-  TextGeneration,
-  type TextGenerationProvider,
-  type TextGenerationShape,
-} from "../Services/TextGeneration.ts";
+  DEFAULT_GIT_TEXT_GENERATION_MODEL_BY_PROVIDER,
+  type ModelSelection,
+  type ProviderKind,
+} from "@t3tools/contracts";
+
+import { TextGeneration, type TextGenerationShape } from "../Services/TextGeneration.ts";
 import { CodexTextGenerationLive } from "./CodexTextGeneration.ts";
 import { ClaudeTextGenerationLive } from "./ClaudeTextGeneration.ts";
 import { CursorTextGenerationLive } from "./CursorTextGeneration.ts";
@@ -45,13 +44,24 @@ class OpenCodeTextGen extends Context.Service<OpenCodeTextGen, TextGenerationSha
 // Routing implementation
 // ---------------------------------------------------------------------------
 
+export function normalizeTextGenerationModelSelection(
+  modelSelection: ModelSelection,
+): ModelSelection {
+  return modelSelection.provider === "pi"
+    ? {
+        provider: "codex",
+        model: DEFAULT_GIT_TEXT_GENERATION_MODEL_BY_PROVIDER.codex,
+      }
+    : modelSelection;
+}
+
 const makeRoutingTextGeneration = Effect.gen(function* () {
   const codex = yield* CodexTextGen;
   const claude = yield* ClaudeTextGen;
   const cursor = yield* CursorTextGen;
   const openCode = yield* OpenCodeTextGen;
 
-  const route = (provider?: TextGenerationProvider): TextGenerationShape =>
+  const route = (provider?: ProviderKind): TextGenerationShape =>
     provider === "claudeAgent"
       ? claude
       : provider === "opencode"
@@ -60,12 +70,30 @@ const makeRoutingTextGeneration = Effect.gen(function* () {
           ? cursor
           : codex;
 
+  const withTextGenerationSelection = <Input extends { readonly modelSelection: ModelSelection }>(
+    input: Input,
+  ): Input => ({
+    ...input,
+    modelSelection: normalizeTextGenerationModelSelection(input.modelSelection),
+  });
+
   return {
-    generateCommitMessage: (input) =>
-      route(input.modelSelection.provider).generateCommitMessage(input),
-    generatePrContent: (input) => route(input.modelSelection.provider).generatePrContent(input),
-    generateBranchName: (input) => route(input.modelSelection.provider).generateBranchName(input),
-    generateThreadTitle: (input) => route(input.modelSelection.provider).generateThreadTitle(input),
+    generateCommitMessage: (input) => {
+      const normalizedInput = withTextGenerationSelection(input);
+      return route(normalizedInput.modelSelection.provider).generateCommitMessage(normalizedInput);
+    },
+    generatePrContent: (input) => {
+      const normalizedInput = withTextGenerationSelection(input);
+      return route(normalizedInput.modelSelection.provider).generatePrContent(normalizedInput);
+    },
+    generateBranchName: (input) => {
+      const normalizedInput = withTextGenerationSelection(input);
+      return route(normalizedInput.modelSelection.provider).generateBranchName(normalizedInput);
+    },
+    generateThreadTitle: (input) => {
+      const normalizedInput = withTextGenerationSelection(input);
+      return route(normalizedInput.modelSelection.provider).generateThreadTitle(normalizedInput);
+    },
   } satisfies TextGenerationShape;
 });
 

@@ -5,6 +5,7 @@ import { Effect, FileSystem } from "effect";
 
 import {
   hydrateCachedProvider,
+  orderProviderSnapshots,
   readProviderStatusCache,
   resolveProviderStatusCachePath,
   writeProviderStatusCache,
@@ -72,6 +73,21 @@ it.layer(NodeServices.layer)("providerStatusCache", (it) => {
       assert.deepStrictEqual(yield* readProviderStatusCache(openCodePath), openCodeProvider);
     }),
   );
+
+  it("orders Pi after currently executable providers", () => {
+    const providers = orderProviderSnapshots([
+      makeProvider("pi"),
+      makeProvider("cursor"),
+      makeProvider("codex"),
+      makeProvider("opencode"),
+      makeProvider("claudeAgent"),
+    ]);
+
+    assert.deepStrictEqual(
+      providers.map((provider) => provider.provider),
+      ["codex", "claudeAgent", "opencode", "cursor", "pi"],
+    );
+  });
 
   it("hydrates cached provider status while preserving current settings-derived models", () => {
     const cachedCodex = makeProvider("codex", {

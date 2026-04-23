@@ -14,6 +14,7 @@ import { deepMerge } from "@t3tools/shared/Struct";
 
 import { checkCodexProviderStatus, type CodexAppServerProviderSnapshot } from "./CodexProvider.ts";
 import { checkClaudeProviderStatus, parseClaudeAuthStatusFromOutput } from "./ClaudeProvider.ts";
+import { checkPiProviderStatus } from "./PiProvider.ts";
 import {
   haveProvidersChanged,
   mergeProviderSnapshot,
@@ -284,6 +285,62 @@ it.layer(Layer.mergeAll(NodeServices.layer, ServerSettingsService.layerTest()))(
       );
     });
 
+    describe("checkPiProviderStatus", () => {
+      it.effect("returns a disabled Pi snapshot without probing the SDK", () =>
+        Effect.gen(function* () {
+          let loadCount = 0;
+          const status = yield* checkPiProviderStatus(
+            {
+              enabled: false,
+              packageEntryPath: "",
+            },
+            {
+              resolveEntryPath: async () => "/tmp/pi/dist/index.js",
+              loadSdk: async () => {
+                loadCount += 1;
+              },
+              readVersion: async () => "1.2.3",
+            },
+          );
+
+          assert.strictEqual(status.provider, "pi");
+          assert.strictEqual(status.enabled, false);
+          assert.strictEqual(status.status, "disabled");
+          assert.strictEqual(status.installed, false);
+          assert.strictEqual(status.auth.status, "unknown");
+          assert.deepStrictEqual(status.models, []);
+          assert.strictEqual(loadCount, 0);
+        }),
+      );
+
+      it.effect("reports Pi ready when the SDK can be loaded", () =>
+        Effect.gen(function* () {
+          const status = yield* checkPiProviderStatus(
+            {
+              enabled: true,
+              packageEntryPath: "/tmp/pi/dist/index.js",
+            },
+            {
+              resolveEntryPath: async (packageEntryPath) =>
+                packageEntryPath ?? "/tmp/pi/dist/index.js",
+              loadSdk: async () => ({}),
+              readVersion: async () => "1.2.3",
+            },
+          );
+
+          assert.strictEqual(status.provider, "pi");
+          assert.strictEqual(status.enabled, true);
+          assert.strictEqual(status.status, "ready");
+          assert.strictEqual(status.installed, true);
+          assert.strictEqual(status.version, "1.2.3");
+          assert.strictEqual(status.auth.status, "unknown");
+          assert.deepStrictEqual(status.models, []);
+          assert.deepStrictEqual(status.slashCommands, []);
+          assert.deepStrictEqual(status.skills, []);
+        }),
+      );
+    });
+
     describe("ProviderRegistryLive", () => {
       it("treats equal provider snapshots as unchanged", () => {
         const providers = [
@@ -522,10 +579,11 @@ it.layer(Layer.mergeAll(NodeServices.layer, ServerSettingsService.layerTest()))(
               const registry = yield* ProviderRegistry;
               const providers = yield* registry.getProviders;
               const cursorProvider = providers.find((provider) => provider.provider === "cursor");
+              const piProvider = providers.find((provider) => provider.provider === "pi");
 
               assert.deepStrictEqual(
                 providers.map((provider) => provider.provider),
-                ["codex", "claudeAgent", "opencode", "cursor"],
+                ["codex", "claudeAgent", "opencode", "cursor", "pi"],
               );
               assert.strictEqual(cursorProvider?.enabled, false);
               assert.strictEqual(cursorProvider?.status, "disabled");
@@ -534,6 +592,8 @@ it.layer(Layer.mergeAll(NodeServices.layer, ServerSettingsService.layerTest()))(
                 "Cursor is disabled in T3 Code settings.",
               );
               assert.strictEqual(cursorSpawned, false);
+              assert.strictEqual(piProvider?.enabled, false);
+              assert.strictEqual(piProvider?.status, "disabled");
             }).pipe(Effect.provide(runtimeServices));
           }),
       );

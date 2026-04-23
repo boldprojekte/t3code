@@ -8,6 +8,7 @@ import {
   type ModelCapabilities,
   type ModelSelection,
   type OpenCodeModelOptions,
+  type PiModelOptions,
   type ProviderKind,
   type ProviderModelOptions,
 } from "@t3tools/contracts";
@@ -167,6 +168,8 @@ export function normalizeProviderModelOptionsWithCapabilities(
         caps,
         modelOptions as OpenCodeModelOptions,
       );
+    case "pi":
+      return undefined;
   }
 }
 
@@ -278,6 +281,12 @@ export function createModelSelection(
         provider,
         model,
         ...(options ? { options: options as OpenCodeModelOptions } : {}),
+      };
+    case "pi":
+      return {
+        provider,
+        model,
+        ...(options ? { options: options as PiModelOptions } : {}),
       };
   }
 }

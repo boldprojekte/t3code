@@ -41,6 +41,17 @@ it.layer(NodeServices.layer)("server settings", (it) => {
           },
         },
       );
+
+      assert.deepEqual(
+        decodePatch({
+          providers: { pi: { enabled: true, packageEntryPath: "/tmp/pi/dist/index.js" } },
+          textGenerationModelSelection: { provider: "pi", model: "default" },
+        }),
+        {
+          providers: { pi: { enabled: true, packageEntryPath: "/tmp/pi/dist/index.js" } },
+          textGenerationModelSelection: { provider: "pi", model: "default" },
+        },
+      );
     }),
   );
 
@@ -138,6 +149,29 @@ it.layer(NodeServices.layer)("server settings", (it) => {
         options: {
           reasoningEffort: "high",
         },
+      });
+    }).pipe(Effect.provide(makeServerSettingsLayer())),
+  );
+
+  it.effect("falls back from Pi for server text generation even when Pi is enabled", () =>
+    Effect.gen(function* () {
+      const serverSettings = yield* ServerSettingsService;
+
+      const next = yield* serverSettings.updateSettings({
+        providers: {
+          pi: {
+            enabled: true,
+          },
+        },
+        textGenerationModelSelection: {
+          provider: "pi",
+          model: "default",
+        },
+      });
+
+      assert.deepEqual(next.textGenerationModelSelection, {
+        provider: "codex",
+        model: DEFAULT_SERVER_SETTINGS.textGenerationModelSelection.model,
       });
     }).pipe(Effect.provide(makeServerSettingsLayer())),
   );

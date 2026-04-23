@@ -101,8 +101,18 @@ const TIMESTAMP_FORMAT_LABELS = {
   "24-hour": "24-hour",
 } as const;
 
+type ConfigurableProviderKind = Exclude<ProviderKind, "pi">;
+
+type ConfigurableProviderSettings = {
+  readonly enabled: boolean;
+  readonly binaryPath: string;
+  readonly customModels: readonly string[];
+  readonly serverUrl?: string;
+  readonly serverPassword?: string;
+};
+
 type InstallProviderSettings = {
-  provider: ProviderKind;
+  provider: ConfigurableProviderKind;
   title: string;
   badgeLabel?: string;
   binaryPlaceholder: string;
@@ -563,6 +573,10 @@ export function GeneralSettingsPanel() {
         DEFAULT_UNIFIED_SETTINGS.providers.opencode.serverPassword ||
       settings.providers.opencode.customModels.length > 0,
     ),
+    pi: Boolean(
+      settings.providers.pi.packageEntryPath !==
+      DEFAULT_UNIFIED_SETTINGS.providers.pi.packageEntryPath,
+    ),
   });
   const [customModelInputByProvider, setCustomModelInputByProvider] = useState<
     Record<ProviderKind, string>
@@ -571,6 +585,7 @@ export function GeneralSettingsPanel() {
     claudeAgent: "",
     cursor: "",
     opencode: "",
+    pi: "",
   });
   const [customModelErrorByProvider, setCustomModelErrorByProvider] = useState<
     Partial<Record<ProviderKind, string | null>>
@@ -676,7 +691,7 @@ export function GeneralSettingsPanel() {
   const isOpeningLogsDirectory = openingPathByTarget.logsDirectory;
 
   const addCustomModel = useCallback(
-    (provider: ProviderKind) => {
+    (provider: ConfigurableProviderKind) => {
       const customModelInput = customModelInputByProvider[provider];
       const customModels = settings.providers[provider].customModels;
       const normalized = normalizeModelSlug(customModelInput, provider);
@@ -746,7 +761,7 @@ export function GeneralSettingsPanel() {
   );
 
   const removeCustomModel = useCallback(
-    (provider: ProviderKind, slug: string) => {
+    (provider: ConfigurableProviderKind, slug: string) => {
       updateSettings({
         providers: {
           ...settings.providers,
@@ -770,8 +785,12 @@ export function GeneralSettingsPanel() {
     const liveProvider = serverProviders.find(
       (candidate) => candidate.provider === providerSettings.provider,
     );
-    const providerConfig = settings.providers[providerSettings.provider];
-    const defaultProviderConfig = DEFAULT_UNIFIED_SETTINGS.providers[providerSettings.provider];
+    const providerConfig = settings.providers[
+      providerSettings.provider
+    ] as ConfigurableProviderSettings;
+    const defaultProviderConfig = DEFAULT_UNIFIED_SETTINGS.providers[
+      providerSettings.provider
+    ] as ConfigurableProviderSettings;
     const statusKey = liveProvider?.status ?? (providerConfig.enabled ? "warning" : "disabled");
     const summary = getProviderSummary(liveProvider);
     const models: ReadonlyArray<ServerProviderModel> =
