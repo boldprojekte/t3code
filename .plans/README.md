@@ -11,6 +11,7 @@
 - [Subplan: Pi Phase 3 Adapter and Registry Seam](./pi-provider-phase-3-adapter-registry-seam.md)
 - [Subplan: Pi Phase 3 Runtime Ingestion and Projection Validation](./pi-provider-phase-3-runtime-ingestion-projection.md)
 - [Subplan: Pi Phase 3 Session Binding and Resume](./pi-provider-phase-3-session-binding-resume.md)
+- [Subplan: Pi Phase 3 Real ProviderService Smoke Validation](./pi-provider-phase-3-real-provider-service-smoke.md)
 
 ## Other plans
 1. [01-shared-model-normalization.md](./01-shared-model-normalization.md)

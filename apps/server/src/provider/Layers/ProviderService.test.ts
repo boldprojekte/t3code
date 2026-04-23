@@ -64,7 +64,13 @@ type LegacyProviderRuntimeEvent = {
   readonly [key: string]: unknown;
 };
 
-function makeFakeCodexAdapter(provider: ProviderKind = "codex") {
+function makeFakeCodexAdapter(
+  provider: ProviderKind = "codex",
+  options?: {
+    readonly resumeCursorForThread?: (threadId: ThreadId) => unknown;
+    readonly sendTurnResumeCursorForThread?: (threadId: ThreadId) => unknown;
+  },
+) {
   const sessions = new Map<ThreadId, ProviderSession>();
   const runtimeEventPubSub = Effect.runSync(PubSub.unbounded<ProviderRuntimeEvent>());
 
@@ -76,7 +82,10 @@ function makeFakeCodexAdapter(provider: ProviderKind = "codex") {
         status: "ready",
         runtimeMode: input.runtimeMode,
         threadId: input.threadId,
-        resumeCursor: input.resumeCursor ?? { opaque: `resume-${String(input.threadId)}` },
+        resumeCursor: input.resumeCursor ??
+          options?.resumeCursorForThread?.(input.threadId) ?? {
+            opaque: `resume-${String(input.threadId)}`,
+          },
         cwd: input.cwd ?? process.cwd(),
         createdAt: now,
         updatedAt: now,
@@ -99,9 +108,21 @@ function makeFakeCodexAdapter(provider: ProviderKind = "codex") {
         );
       }
 
+      const resumeCursor = options?.sendTurnResumeCursorForThread?.(input.threadId);
+      if (resumeCursor !== undefined) {
+        const existing = sessions.get(input.threadId);
+        if (existing) {
+          sessions.set(input.threadId, {
+            ...existing,
+            resumeCursor,
+            updatedAt: new Date().toISOString(),
+          });
+        }
+      }
       return Effect.succeed({
         threadId: input.threadId,
         turnId: TurnId.make(`turn-${String(input.threadId)}`),
+        ...(resumeCursor !== undefined ? { resumeCursor } : {}),
       });
     },
   );
@@ -354,6 +375,296 @@ it.effect("ProviderServiceLive rejects new sessions for disabled providers", () 
     assert.equal(claude.startSession.mock.calls.length, 0);
     assert.equal(pi.startSession.mock.calls.length, 0);
   }).pipe(Effect.provide(NodeServices.layer)),
+);
+
+it.effect("ProviderServiceLive persists Pi session file resume cursors after start and send", () =>
+  Effect.gen(function* () {
+    const threadId = asThreadId("thread-pi-resume-persist");
+    const startResumeCursor = { sessionFile: "/tmp/pi-resume-persist-start.jsonl" };
+    const turnResumeCursor = { sessionFile: "/tmp/pi-resume-persist-turn.jsonl" };
+    const pi = makeFakeCodexAdapter("pi", {
+      resumeCursorForThread: () => startResumeCursor,
+      sendTurnResumeCursorForThread: () => turnResumeCursor,
+    });
+    const registry: typeof ProviderAdapterRegistry.Service = {
+      getByProvider: (provider) =>
+        provider === "pi"
+          ? Effect.succeed(pi.adapter)
+          : Effect.fail(new ProviderUnsupportedError({ provider })),
+      listProviders: () => Effect.succeed(["pi"]),
+    };
+    const providerAdapterLayer = Layer.succeed(ProviderAdapterRegistry, registry);
+    const serverSettingsLayer = ServerSettingsService.layerTest({
+      providers: {
+        pi: {
+          enabled: true,
+        },
+      },
+    });
+    const runtimeRepositoryLayer = ProviderSessionRuntimeRepositoryLive.pipe(
+      Layer.provide(SqlitePersistenceMemory),
+    );
+    const directoryLayer = ProviderSessionDirectoryLive.pipe(Layer.provide(runtimeRepositoryLayer));
+    const providerLayer = makeProviderServiceLive().pipe(
+      Layer.provide(providerAdapterLayer),
+      Layer.provide(directoryLayer),
+      Layer.provide(serverSettingsLayer),
+      Layer.provide(AnalyticsService.layerTest),
+    );
+    const testLayer = Layer.mergeAll(providerLayer, runtimeRepositoryLayer);
+
+    yield* Effect.gen(function* () {
+      const provider = yield* ProviderService;
+      const runtimeRepository = yield* ProviderSessionRuntimeRepository;
+
+      const session = yield* provider.startSession(threadId, {
+        provider: "pi",
+        threadId,
+        runtimeMode: "full-access",
+        cwd: "/tmp/pi-resume-persist-cwd",
+      });
+      const persistedAfterStart = yield* runtimeRepository.getByThreadId({ threadId });
+      assert.deepEqual(session.resumeCursor, startResumeCursor);
+      assert.equal(Option.isSome(persistedAfterStart), true);
+      if (Option.isSome(persistedAfterStart)) {
+        assert.equal(persistedAfterStart.value.providerName, "pi");
+        assert.deepEqual(persistedAfterStart.value.resumeCursor, startResumeCursor);
+        const payload = persistedAfterStart.value.runtimePayload;
+        assert.equal(payload !== null && typeof payload === "object", true);
+        if (payload !== null && typeof payload === "object" && !Array.isArray(payload)) {
+          const runtimePayload = payload as { cwd?: unknown; activeTurnId?: unknown };
+          assert.equal(runtimePayload.cwd, "/tmp/pi-resume-persist-cwd");
+          assert.equal(runtimePayload.activeTurnId, null);
+        }
+      }
+
+      const turn = yield* provider.sendTurn({
+        threadId,
+        input: "Continue Pi session",
+      });
+      const persistedAfterSend = yield* runtimeRepository.getByThreadId({ threadId });
+      assert.deepEqual(turn.resumeCursor, turnResumeCursor);
+      assert.equal(Option.isSome(persistedAfterSend), true);
+      if (Option.isSome(persistedAfterSend)) {
+        assert.equal(persistedAfterSend.value.providerName, "pi");
+        assert.equal(persistedAfterSend.value.status, "running");
+        assert.deepEqual(persistedAfterSend.value.resumeCursor, turnResumeCursor);
+        const payload = persistedAfterSend.value.runtimePayload;
+        assert.equal(payload !== null && typeof payload === "object", true);
+        if (payload !== null && typeof payload === "object" && !Array.isArray(payload)) {
+          const runtimePayload = payload as {
+            cwd?: unknown;
+            activeTurnId?: unknown;
+            lastRuntimeEvent?: unknown;
+          };
+          assert.equal(runtimePayload.cwd, "/tmp/pi-resume-persist-cwd");
+          assert.equal(runtimePayload.activeTurnId, `turn-${String(threadId)}`);
+          assert.equal(runtimePayload.lastRuntimeEvent, "provider.sendTurn");
+        }
+      }
+    }).pipe(Effect.provide(testLayer));
+  }).pipe(Effect.provide(NodeServices.layer)),
+);
+
+it.effect(
+  "ProviderServiceLive recovers stale Pi sessions with persisted sessionFile resume cursor",
+  () =>
+    Effect.gen(function* () {
+      const threadId = asThreadId("thread-pi-resume-stale");
+      const startResumeCursor = { sessionFile: "/tmp/pi-resume-stale-start.jsonl" };
+      const turnResumeCursor = { sessionFile: "/tmp/pi-resume-stale-turn.jsonl" };
+      const pi = makeFakeCodexAdapter("pi", {
+        resumeCursorForThread: () => startResumeCursor,
+        sendTurnResumeCursorForThread: () => turnResumeCursor,
+      });
+      const registry: typeof ProviderAdapterRegistry.Service = {
+        getByProvider: (provider) =>
+          provider === "pi"
+            ? Effect.succeed(pi.adapter)
+            : Effect.fail(new ProviderUnsupportedError({ provider })),
+        listProviders: () => Effect.succeed(["pi"]),
+      };
+      const providerAdapterLayer = Layer.succeed(ProviderAdapterRegistry, registry);
+      const serverSettingsLayer = ServerSettingsService.layerTest({
+        providers: {
+          pi: {
+            enabled: true,
+          },
+        },
+      });
+      const runtimeRepositoryLayer = ProviderSessionRuntimeRepositoryLive.pipe(
+        Layer.provide(SqlitePersistenceMemory),
+      );
+      const directoryLayer = ProviderSessionDirectoryLive.pipe(
+        Layer.provide(runtimeRepositoryLayer),
+      );
+      const providerLayer = makeProviderServiceLive().pipe(
+        Layer.provide(providerAdapterLayer),
+        Layer.provide(directoryLayer),
+        Layer.provide(serverSettingsLayer),
+        Layer.provide(AnalyticsService.layerTest),
+      );
+
+      yield* Effect.gen(function* () {
+        const provider = yield* ProviderService;
+        yield* provider.startSession(threadId, {
+          provider: "pi",
+          threadId,
+          runtimeMode: "full-access",
+          cwd: "/tmp/pi-resume-stale-cwd",
+        });
+
+        yield* pi.stopAll();
+        pi.startSession.mockClear();
+        pi.sendTurn.mockClear();
+
+        yield* provider.sendTurn({
+          threadId,
+          input: "Resume stale Pi session",
+        });
+
+        assert.equal(pi.startSession.mock.calls.length, 1);
+        const resumedStartInput = pi.startSession.mock.calls[0]?.[0];
+        assert.equal(typeof resumedStartInput === "object" && resumedStartInput !== null, true);
+        if (resumedStartInput && typeof resumedStartInput === "object") {
+          const startPayload = resumedStartInput as {
+            provider?: string;
+            cwd?: string;
+            resumeCursor?: unknown;
+            runtimeMode?: string;
+            threadId?: string;
+          };
+          assert.equal(startPayload.provider, "pi");
+          assert.equal(startPayload.cwd, "/tmp/pi-resume-stale-cwd");
+          assert.deepEqual(startPayload.resumeCursor, startResumeCursor);
+          assert.equal(startPayload.runtimeMode, "full-access");
+          assert.equal(startPayload.threadId, threadId);
+        }
+        assert.equal(pi.sendTurn.mock.calls.length, 1);
+      }).pipe(Effect.provide(providerLayer));
+    }).pipe(Effect.provide(NodeServices.layer)),
+);
+
+it.effect(
+  "ProviderServiceLive resumes Pi sessions after restart with the persisted session file",
+  () =>
+    Effect.gen(function* () {
+      const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "t3-provider-service-pi-resume-"));
+      const dbPath = path.join(tempDir, "orchestration.sqlite");
+      const persistenceLayer = makeSqlitePersistenceLive(dbPath);
+      const runtimeRepositoryLayer = ProviderSessionRuntimeRepositoryLive.pipe(
+        Layer.provide(persistenceLayer),
+      );
+      const threadId = asThreadId("thread-pi-resume-restart");
+      const firstResumeCursor = { sessionFile: "/tmp/pi-resume-restart-first.jsonl" };
+      const secondTurnResumeCursor = { sessionFile: "/tmp/pi-resume-restart-second.jsonl" };
+
+      const firstPi = makeFakeCodexAdapter("pi", {
+        resumeCursorForThread: () => firstResumeCursor,
+      });
+      const firstRegistry: typeof ProviderAdapterRegistry.Service = {
+        getByProvider: (provider) =>
+          provider === "pi"
+            ? Effect.succeed(firstPi.adapter)
+            : Effect.fail(new ProviderUnsupportedError({ provider })),
+        listProviders: () => Effect.succeed(["pi"]),
+      };
+      const serverSettingsLayer = ServerSettingsService.layerTest({
+        providers: {
+          pi: {
+            enabled: true,
+          },
+        },
+      });
+      const firstDirectoryLayer = ProviderSessionDirectoryLive.pipe(
+        Layer.provide(runtimeRepositoryLayer),
+      );
+      const firstProviderLayer = makeProviderServiceLive().pipe(
+        Layer.provide(Layer.succeed(ProviderAdapterRegistry, firstRegistry)),
+        Layer.provide(firstDirectoryLayer),
+        Layer.provide(serverSettingsLayer),
+        Layer.provide(AnalyticsService.layerTest),
+      );
+
+      yield* Effect.gen(function* () {
+        const provider = yield* ProviderService;
+        yield* provider.startSession(threadId, {
+          provider: "pi",
+          threadId,
+          runtimeMode: "full-access",
+          cwd: "/tmp/pi-resume-restart-cwd",
+        });
+        yield* firstPi.stopAll();
+      }).pipe(Effect.provide(firstProviderLayer));
+
+      const persistedAfterFirstRuntime = yield* Effect.gen(function* () {
+        const repository = yield* ProviderSessionRuntimeRepository;
+        return yield* repository.getByThreadId({ threadId });
+      }).pipe(Effect.provide(runtimeRepositoryLayer));
+      assert.equal(Option.isSome(persistedAfterFirstRuntime), true);
+      if (Option.isSome(persistedAfterFirstRuntime)) {
+        assert.deepEqual(persistedAfterFirstRuntime.value.resumeCursor, firstResumeCursor);
+      }
+
+      const secondPi = makeFakeCodexAdapter("pi", {
+        sendTurnResumeCursorForThread: () => secondTurnResumeCursor,
+      });
+      const secondRegistry: typeof ProviderAdapterRegistry.Service = {
+        getByProvider: (provider) =>
+          provider === "pi"
+            ? Effect.succeed(secondPi.adapter)
+            : Effect.fail(new ProviderUnsupportedError({ provider })),
+        listProviders: () => Effect.succeed(["pi"]),
+      };
+      const secondDirectoryLayer = ProviderSessionDirectoryLive.pipe(
+        Layer.provide(runtimeRepositoryLayer),
+      );
+      const secondProviderLayer = makeProviderServiceLive().pipe(
+        Layer.provide(Layer.succeed(ProviderAdapterRegistry, secondRegistry)),
+        Layer.provide(secondDirectoryLayer),
+        Layer.provide(serverSettingsLayer),
+        Layer.provide(AnalyticsService.layerTest),
+      );
+
+      const resumedTurn = yield* Effect.gen(function* () {
+        const provider = yield* ProviderService;
+        return yield* provider.sendTurn({
+          threadId,
+          input: "Resume after restart",
+        });
+      }).pipe(Effect.provide(secondProviderLayer));
+
+      assert.deepEqual(resumedTurn.resumeCursor, secondTurnResumeCursor);
+      assert.equal(secondPi.startSession.mock.calls.length, 1);
+      const resumedStartInput = secondPi.startSession.mock.calls[0]?.[0];
+      assert.equal(typeof resumedStartInput === "object" && resumedStartInput !== null, true);
+      if (resumedStartInput && typeof resumedStartInput === "object") {
+        const startPayload = resumedStartInput as {
+          provider?: string;
+          cwd?: string;
+          resumeCursor?: unknown;
+          runtimeMode?: string;
+          threadId?: string;
+        };
+        assert.equal(startPayload.provider, "pi");
+        assert.equal(startPayload.cwd, "/tmp/pi-resume-restart-cwd");
+        assert.deepEqual(startPayload.resumeCursor, firstResumeCursor);
+        assert.equal(startPayload.runtimeMode, "full-access");
+        assert.equal(startPayload.threadId, threadId);
+      }
+      assert.equal(secondPi.sendTurn.mock.calls.length, 1);
+
+      const persistedAfterSecondRuntime = yield* Effect.gen(function* () {
+        const repository = yield* ProviderSessionRuntimeRepository;
+        return yield* repository.getByThreadId({ threadId });
+      }).pipe(Effect.provide(runtimeRepositoryLayer));
+      assert.equal(Option.isSome(persistedAfterSecondRuntime), true);
+      if (Option.isSome(persistedAfterSecondRuntime)) {
+        assert.deepEqual(persistedAfterSecondRuntime.value.resumeCursor, secondTurnResumeCursor);
+      }
+
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    }).pipe(Effect.provide(NodeServices.layer)),
 );
 
 it.effect(

@@ -1,6 +1,6 @@
 # Subplan: Pi Phase 3 Session Binding and Resume
 
-Status: planned
+Status: done
 
 ## Role of this document
 This is the next focused Phase 3 slice after runtime ingestion and projection validation.
@@ -83,6 +83,17 @@ bun run test
 ```
 
 Do not use `bun test`; this repo requires `bun run test`.
+
+## Result
+Done in this slice:
+1. Added Pi ProviderService tests proving `resumeCursor.sessionFile` is persisted after `startSession`.
+2. Added Pi ProviderService tests proving `sendTurn` can update the persisted Pi session-file cursor while preserving persisted `cwd` runtime payload.
+3. Added stale active-session recovery coverage proving ProviderService calls `adapter.startSession` with the persisted Pi `resumeCursor.sessionFile` and `cwd` when no active Pi session exists.
+4. Added restart-style persistence coverage using a real test SQLite database and a fresh fake Pi adapter.
+5. Tightened the fake provider adapter so `listSessions()` reflects turn-updated resume cursors, matching the ProviderService finalizer contract.
+
+Next slice:
+- [Pi Phase 3 Real ProviderService Smoke Validation](./pi-provider-phase-3-real-provider-service-smoke.md)
 
 ## Stop criteria
 Do not mark this slice done until all of the following are true:
