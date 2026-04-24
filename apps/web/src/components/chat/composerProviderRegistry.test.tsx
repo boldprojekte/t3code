@@ -474,15 +474,25 @@ describe("getComposerProviderControls", () => {
   it("hides the interaction mode toggle for OpenCode", () => {
     expect(getComposerProviderControls("opencode")).toEqual({
       showInteractionModeToggle: false,
+      supportsImageAttachments: true,
     });
   });
 
   it("keeps the interaction mode toggle for Codex and Claude", () => {
     expect(getComposerProviderControls("codex")).toEqual({
       showInteractionModeToggle: true,
+      supportsImageAttachments: true,
     });
     expect(getComposerProviderControls("claudeAgent")).toEqual({
       showInteractionModeToggle: true,
+      supportsImageAttachments: true,
+    });
+  });
+
+  it("disables unsupported Pi composer controls", () => {
+    expect(getComposerProviderControls("pi")).toEqual({
+      showInteractionModeToggle: false,
+      supportsImageAttachments: false,
     });
   });
 });

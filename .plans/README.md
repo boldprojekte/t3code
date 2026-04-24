@@ -13,6 +13,8 @@
 - [Subplan: Pi Phase 3 Session Binding and Resume](./pi-provider-phase-3-session-binding-resume.md)
 - [Subplan: Pi Phase 3 Real ProviderService Smoke Validation](./pi-provider-phase-3-real-provider-service-smoke.md)
 - [Subplan: Pi Phase 4 Composer Commands and Thread UX](./pi-provider-phase-4-composer-command-thread-ux.md)
+- [Subplan: Pi Phase 4 Provider Selection and Conservative Composer Gating](./pi-provider-phase-4-provider-selection-and-gating.md)
+- [Subplan: Pi Phase 4 Command Inventory](./pi-provider-phase-4-command-inventory.md)
 
 ## Other plans
 1. [01-shared-model-normalization.md](./01-shared-model-normalization.md)

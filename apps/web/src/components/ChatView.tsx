@@ -2412,7 +2412,9 @@ export default function ChatView(props: ChatViewProps) {
       return;
     }
     const standaloneSlashCommand =
-      composerImages.length === 0 && sendableComposerTerminalContexts.length === 0
+      ctxSelectedProvider !== "pi" &&
+      composerImages.length === 0 &&
+      sendableComposerTerminalContexts.length === 0
         ? parseStandaloneComposerSlashCommand(trimmed)
         : null;
     if (standaloneSlashCommand) {
@@ -2420,6 +2422,10 @@ export default function ChatView(props: ChatViewProps) {
       promptRef.current = "";
       clearComposerDraftContent(composerDraftTarget);
       composerRef.current?.resetCursorState();
+      return;
+    }
+    if (ctxSelectedProvider === "pi" && composerImages.length > 0) {
+      setThreadError(activeThread.id, "Pi does not support image attachments yet.");
       return;
     }
     if (!hasSendableContent) {
@@ -3133,10 +3139,14 @@ export default function ChatView(props: ChatViewProps) {
         provider: resolvedProvider,
         model: resolvedModel,
       };
-      setComposerDraftModelSelection(
-        scopeThreadRef(activeThread.environmentId, activeThread.id),
-        nextModelSelection,
-      );
+      const threadRef = scopeThreadRef(activeThread.environmentId, activeThread.id);
+      setComposerDraftModelSelection(threadRef, nextModelSelection);
+      if (resolvedProvider === "pi" && interactionMode !== "default") {
+        setComposerDraftInteractionMode(threadRef, "default");
+        if (isLocalDraftThread) {
+          setDraftThreadContext(composerDraftTarget, { interactionMode: "default" });
+        }
+      }
       setStickyComposerModelSelection(nextModelSelection);
       scheduleComposerFocus();
     },
@@ -3148,6 +3158,11 @@ export default function ChatView(props: ChatViewProps) {
       setStickyComposerModelSelection,
       providerStatuses,
       settings,
+      interactionMode,
+      isLocalDraftThread,
+      composerDraftTarget,
+      setComposerDraftInteractionMode,
+      setDraftThreadContext,
     ],
   );
   const onEnvModeChange = useCallback(

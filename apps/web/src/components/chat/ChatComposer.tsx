@@ -18,6 +18,7 @@ import {
   PROVIDER_SEND_TURN_MAX_IMAGE_BYTES,
 } from "@t3tools/contracts";
 import { createModelSelection, normalizeModelSlug } from "@t3tools/shared/model";
+import { getCustomModelOptionsByProvider } from "../../modelSelection";
 import {
   forwardRef,
   memo,
@@ -611,19 +612,15 @@ export const ChatComposer = memo(
       [selectedModel, selectedModelOptionsForDispatch, selectedProvider],
     );
     const selectedModelForPicker = selectedModel;
-    const modelOptionsByProvider = useMemo<
-      Record<ProviderKind, ReadonlyArray<ServerProvider["models"][number]>>
-    >(
-      () => ({
-        codex: providerStatuses.find((provider) => provider.provider === "codex")?.models ?? [],
-        claudeAgent:
-          providerStatuses.find((provider) => provider.provider === "claudeAgent")?.models ?? [],
-        opencode:
-          providerStatuses.find((provider) => provider.provider === "opencode")?.models ?? [],
-        cursor: providerStatuses.find((provider) => provider.provider === "cursor")?.models ?? [],
-        pi: providerStatuses.find((provider) => provider.provider === "pi")?.models ?? [],
-      }),
-      [providerStatuses],
+    const modelOptionsByProvider = useMemo(
+      () =>
+        getCustomModelOptionsByProvider(
+          settings,
+          providerStatuses,
+          selectedProvider,
+          selectedModel,
+        ),
+      [providerStatuses, selectedModel, selectedProvider, settings],
     );
     const selectedModelForPickerWithCustomFallback = useMemo(() => {
       const currentOptions = modelOptionsByProvider[selectedProvider];
@@ -719,14 +716,14 @@ export const ChatComposer = memo(
         }));
       }
       if (composerTrigger.kind === "slash-command") {
-        const builtInSlashCommandItems = [
-          {
-            id: "slash:model",
-            type: "slash-command",
-            command: "model",
-            label: "/model",
-            description: "Switch response model for this thread",
-          },
+        const modelSlashCommandItem = {
+          id: "slash:model",
+          type: "slash-command",
+          command: "model",
+          label: "/model",
+          description: "Switch response model for this thread",
+        } satisfies Extract<ComposerCommandItem, { type: "slash-command" }>;
+        const modeSlashCommandItems = [
           {
             id: "slash:plan",
             type: "slash-command",
@@ -742,6 +739,9 @@ export const ChatComposer = memo(
             description: "Switch this thread back to normal build mode",
           },
         ] satisfies ReadonlyArray<Extract<ComposerCommandItem, { type: "slash-command" }>>;
+        const builtInSlashCommandItems = composerProviderControls.showInteractionModeToggle
+          ? [modelSlashCommandItem, ...modeSlashCommandItems]
+          : [modelSlashCommandItem];
         const providerSlashCommandItems = (selectedProviderStatus?.slashCommands ?? []).map(
           (command) => ({
             id: `provider-slash-command:${selectedProvider}:${command.name}`,
@@ -776,7 +776,13 @@ export const ChatComposer = memo(
         }));
       }
       return [];
-    }, [composerTrigger, selectedProvider, selectedProviderStatus, workspaceEntries]);
+    }, [
+      composerProviderControls.showInteractionModeToggle,
+      composerTrigger,
+      selectedProvider,
+      selectedProviderStatus,
+      workspaceEntries,
+    ]);
 
     const composerMenuOpen = Boolean(composerTrigger);
     const composerMenuSearchKey = composerTrigger
@@ -1441,6 +1447,9 @@ export const ChatComposer = memo(
       event: KeyboardEvent,
     ) => {
       if (key === "Tab" && event.shiftKey) {
+        if (!composerProviderControls.showInteractionModeToggle) {
+          return false;
+        }
         toggleInteractionMode();
         return true;
       }
@@ -1478,6 +1487,13 @@ export const ChatComposer = memo(
         toastManager.add({
           type: "error",
           title: "Attach images after answering plan questions.",
+        });
+        return;
+      }
+      if (!composerProviderControls.supportsImageAttachments) {
+        toastManager.add({
+          type: "error",
+          title: "Pi does not support image attachments yet.",
         });
         return;
       }

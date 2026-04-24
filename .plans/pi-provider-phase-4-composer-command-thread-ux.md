@@ -1,6 +1,6 @@
 # Subplan: Pi Phase 4 Composer Commands and Thread UX
 
-Status: planned
+Status: active
 
 ## Role of this document
 This is the first planned Phase 4 slice after Phase 3 ProviderService integration is closed.
@@ -39,6 +39,10 @@ Phase 3 proved Pi can run through `ProviderService`, stream canonical provider e
 4. Approval or user-input callback bridging.
 5. Multi-thread stress testing beyond what is necessary for the UI slice.
 6. Release polish.
+
+## Focused execution slices
+- [done] [Pi Phase 4 Provider Selection and Conservative Composer Gating](./pi-provider-phase-4-provider-selection-and-gating.md)
+- [planned] [Pi Phase 4 Command Inventory](./pi-provider-phase-4-command-inventory.md)
 
 ## Proposed implementation steps
 ### 1. Inventory current composer/provider flows

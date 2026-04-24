@@ -24,7 +24,7 @@ Do not use this file as the durable product spec. The product roadmap and scope 
 - When a slice closes, also update the linked subplan status. If the next slice is different work, create or activate a new subplan here instead of silently continuing under an old one.
 
 ## Current summary
-Overall status: Phase 1 server-only Pi hardening, Phase 2 shared provider contracts/status, and Phase 3 ProviderService/orchestration integration are done. The next work is Phase 4 composer commands and thread UX.
+Overall status: Phase 1 server-only Pi hardening, Phase 2 shared provider contracts/status, Phase 3 ProviderService/orchestration integration, and the first Phase 4 provider-selection/gating slice are done. The next work is Phase 4 Pi command inventory.
 
 Current position:
 1. thin SDK host exists
@@ -36,7 +36,7 @@ Current position:
 7. the local bridge now treats one visible T3 turn as one full Pi prompt lifecycle, even when Pi crosses multiple internal `toolUse` turn boundaries
 8. unsupported paths were re-checked against that lifecycle contract: plan mode remains an explicit hard failure and slash-command-shaped prompts are safe pass-through prompt text at this layer
 9. shared-contract and provider-status integration is implemented: `pi` is accepted in contracts, appears in provider status, and is tolerated by server and web provider metadata; server-side ProviderService routing now exists behind explicit settings enablement
-10. Pi is now resolvable through the normal provider adapter registry, routable through ProviderService, validated through runtime ingestion/projection tests, covered for session binding/resume with fake adapters, and smoke-tested against real local Pi through ProviderService and PiAdapterLive
+10. Pi is now resolvable through the normal provider adapter registry, routable through ProviderService, validated through runtime ingestion/projection tests, covered for session binding/resume with fake adapters, smoke-tested against real local Pi through ProviderService and PiAdapterLive, and selectable in the composer when provider status is ready
 
 ## Status by roadmap phase
 
@@ -86,12 +86,19 @@ Closed decision:
 - [x] Phase 3 is complete and does not add new blockers to Phase 4
 
 ### Phase 4: Composer commands and thread UX
-Status: planned
+Status: active
+
+Done:
+- [x] Pi appears in the provider/model picker when provider status is ready
+- [x] Pi uses one conservative `default` model option until runtime model inventory exists
+- [x] Plan-mode controls and image attachments are gated off for Pi before dispatch
+
+Next focused slice:
+- [ ] Execute [Pi Phase 4 Command Inventory](./pi-provider-phase-4-command-inventory.md)
 
 Planned:
 - [ ] Surface Pi command inventory in the composer
 - [ ] Support slash command invocation in Pi threads
-- [ ] Hide or disable unsupported Pi thread actions
 - [ ] Verify prompt templates and skill commands are useful in practice
 
 ### Phase 5: Resume, multi-thread hardening, and minimal UI bridging
@@ -122,7 +129,9 @@ Planned:
 - [done] [Pi Phase 3 Runtime Ingestion and Projection Validation](./pi-provider-phase-3-runtime-ingestion-projection.md)
 - [done] [Pi Phase 3 Session Binding and Resume](./pi-provider-phase-3-session-binding-resume.md)
 - [done] [Pi Phase 3 Real ProviderService Smoke Validation](./pi-provider-phase-3-real-provider-service-smoke.md)
-- [planned] [Pi Phase 4 Composer Commands and Thread UX](./pi-provider-phase-4-composer-command-thread-ux.md)
+- [active] [Pi Phase 4 Composer Commands and Thread UX](./pi-provider-phase-4-composer-command-thread-ux.md)
+- [done] [Pi Phase 4 Provider Selection and Conservative Composer Gating](./pi-provider-phase-4-provider-selection-and-gating.md)
+- [planned] [Pi Phase 4 Command Inventory](./pi-provider-phase-4-command-inventory.md)
 
 When a concrete execution slice starts, add it here with status:
 - planned
@@ -136,15 +145,29 @@ Suggested format:
 ## Known guardrails right now
 These are current intentional limitations, not accidents:
 
-1. ProviderService can route Pi when Pi is explicitly enabled, but the UI still does not advertise Pi as generally available.
+1. Pi appears in the provider/model picker only when the server provider snapshot is ready; command inventory is not surfaced yet.
 2. Pi runtime ingestion/projection and session binding/resume are covered by tests, and the integrated ProviderService path has one real local Pi smoke pass.
-3. No attachment support in the local Pi provider-shaped bridge.
+3. No attachment support in the local Pi provider-shaped bridge or composer path.
 4. No model selection support in the local Pi provider-shaped bridge.
 5. No approval callback or user-input callback bridge yet.
 6. No rollback support.
 7. No Pi-specific TUI UI rendering.
 
 ## Last meaningful completed slice
+Completed Phase 4 provider selection and conservative composer gating:
+- `apps/web/src/session-logic.ts`
+- `apps/web/src/modelSelection.ts`
+- `apps/web/src/components/chat/ChatComposer.tsx`
+- `apps/web/src/components/ChatView.tsx`
+- `apps/web/src/components/chat/ProviderModelPicker.browser.tsx`
+- `apps/web/src/components/chat/composerProviderRegistry.tsx`
+
+Why it matters:
+1. Pi can now be selected from the normal provider/model picker when the server reports Pi ready.
+2. The composer keeps Pi conservative: default model only, no plan-mode switching, no standalone slash-command mode switching, and no image attachments.
+3. The next Phase 4 gap is real Pi command inventory for active Pi threads.
+
+Previous meaningful completed slice:
 Completed Phase 3 real ProviderService smoke validation:
 - `apps/server/scripts/pi-provider-service-smoke.ts`
 - `apps/server/package.json`

@@ -1,5 +1,6 @@
 import {
   DEFAULT_GIT_TEXT_GENERATION_MODEL_BY_PROVIDER,
+  DEFAULT_MODEL_BY_PROVIDER,
   type ModelSelection,
   type ProviderKind,
   type ServerProvider,
@@ -129,6 +130,14 @@ export function getAppModelOptions(
       isCustom,
     }),
   );
+  if (provider === "pi" && options.length === 0) {
+    options.push({
+      slug: DEFAULT_MODEL_BY_PROVIDER.pi,
+      name: "Default",
+      isCustom: false,
+    });
+  }
+
   const seen = new Set(options.map((option) => option.slug));
   const trimmedSelectedModel = selectedModel?.trim().toLowerCase();
   const builtInModelSlugs = new Set(

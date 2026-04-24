@@ -203,6 +203,22 @@ function buildOpenCodeProvider(models: ServerProvider["models"]): ServerProvider
   };
 }
 
+function buildPiProvider(overrides?: Partial<ServerProvider>): ServerProvider {
+  return {
+    provider: "pi",
+    enabled: true,
+    installed: true,
+    version: "0.0.0-test",
+    status: "ready",
+    auth: { status: "unknown" },
+    checkedAt: new Date().toISOString(),
+    models: [],
+    slashCommands: [],
+    skills: [],
+    ...overrides,
+  };
+}
+
 async function mountPicker(props: {
   provider: ProviderKind;
   model: string;
@@ -985,6 +1001,32 @@ describe("ProviderModelPicker", () => {
       });
     } finally {
       await visible.cleanup();
+    }
+  });
+
+  it("allows selecting ready Pi through its conservative default model", async () => {
+    const mounted = await mountPicker({
+      provider: "codex",
+      model: "gpt-5-codex",
+      lockedProvider: null,
+      providers: [...TEST_PROVIDERS, buildPiProvider()],
+    });
+
+    try {
+      await page.getByRole("button").click();
+      await page.getByRole("button", { name: "Pi, new" }).click();
+
+      await vi.waitFor(() => {
+        expect(getModelPickerListText()).toContain("Default");
+      });
+
+      await page.getByText("Default").click();
+
+      await vi.waitFor(() => {
+        expect(mounted.onProviderModelChange).toHaveBeenCalledWith("pi", "default");
+      });
+    } finally {
+      await mounted.cleanup();
     }
   });
 

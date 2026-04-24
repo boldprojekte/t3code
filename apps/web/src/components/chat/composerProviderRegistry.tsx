@@ -45,6 +45,7 @@ type TraitsRenderInput = {
 
 export type ComposerProviderControls = {
   showInteractionModeToggle: boolean;
+  supportsImageAttachments: boolean;
 };
 
 type ProviderRegistryEntry = {
@@ -139,6 +140,7 @@ function getProviderStateFromCapabilities(
 
 const DEFAULT_PROVIDER_CONTROLS: ComposerProviderControls = {
   showInteractionModeToggle: true,
+  supportsImageAttachments: true,
 };
 
 function createProviderRegistryEntry(
@@ -165,6 +167,7 @@ const composerProviderRegistry: Record<ProviderKind, ProviderRegistryEntry> = {
   }),
   pi: createProviderRegistryEntry("pi", {
     showInteractionModeToggle: false,
+    supportsImageAttachments: false,
   }),
 };
 
